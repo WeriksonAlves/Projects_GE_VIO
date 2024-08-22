@@ -41,11 +41,11 @@ if success:
     
     success = bebopVision.open_video()
     
+    print(f"\nGet ready to capture images for calibration. You have 10 seconds to prepare.\n")
+    bebop.smart_sleep(10)
+    
     if success:
         print("Vision successfully started!")
-
-        # Time for prepare the setup
-        bebop.smart_sleep(10)
 
         # Capture images for a specified duration
         capture_duration = 30  # seconds
