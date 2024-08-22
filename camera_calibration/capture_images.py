@@ -16,55 +16,46 @@ class UserVision:
         self.vision = vision
 
     def save_pictures(self, args):
-        #print("saving picture")
         img = self.vision.get_latest_valid_picture()
 
-        if (img is not None):
-            cv2.imshow('Original', img)
+        if img is not None:
+            cv2.imshow('Captured Image', img)
             cv2.waitKey(1)
-            filename = "test_image_%06d.png" % self.index
-            #cv2.imwrite(filename, img)
-            self.index +=1
+            filename = f"calibration_image_{self.index:05d}.png"
+            # cv2.imwrite(filename, img)
+            # print(f"Saved {filename}")
+            self.index += 1
 
-    def my_imshow(self, args):
-        img = self.vision.get_latest_valid_picture()
-        if (img is not None):
-            cv2.imshow('Original', img)
-            cv2.waitKey(1)
-
-# make my bebop object
+# Initialize the Bebop object
 bebop = Bebop()
 
-# connect to the bebop
+# Connect to the Bebop
 success = bebop.connect(100)
 
-if (success):
-    # start up the video
+if success:
+    # Start up the video
     bebopVision = DroneVision(bebop, Model.BEBOP, buffer_size=10)
 
     userVision = UserVision(bebopVision)
     bebopVision.set_user_callback_function(userVision.save_pictures, user_callback_args=None)
+    
     success = bebopVision.open_video()
     
-    
-    if (success):
-        
+    if success:
         print("Vision successfully started!")
-        #removed the user call to this function (it now happens in open_video())
-        #bebopVision.start_video_buffering()
 
-        # skipping actually flying for safety purposes indoors - if you want
-        # different pictures, move the bebop around by hand
-        print("Fly me around by hand!")
-        bebop.smart_sleep(5)
+        # Time for prepare the setup
+        bebop.smart_sleep(10)
 
-        print("Moving the camera using velocity")
-        bebop.pan_tilt_camera_velocity(pan_velocity=0, tilt_velocity=0, duration=4)
-        bebop.smart_sleep(25)
-        print("Finishing demo and stopping vision")
+        # Capture images for a specified duration
+        capture_duration = 30  # seconds
+        print(f"Move the drone around and hold the pattern in front of the camera for {capture_duration} seconds.")
+        bebop.smart_sleep(capture_duration)
+
+        print("Finishing and stopping vision")
         bebopVision.close_video()
 
-    # disconnect nicely so we don't need a reboot
+    # Disconnect nicely
     bebop.disconnect()
 else:
-    print("Error connecting to bebop.  Retry")
+    print("Error connecting to Bebop. Please retry.")
