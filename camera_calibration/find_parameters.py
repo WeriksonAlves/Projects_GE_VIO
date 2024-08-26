@@ -86,7 +86,7 @@ def process_images(images: list, num_images: int, chessboard_size: tuple, square
     image_number_read = 0
 
     for idx, image_file in enumerate(images):
-        if idx % (len(images)/num_images) == 0:
+        if idx % int(len(images)/num_images) == 0:
             image_number_read += 1
             print(f"Processing image {idx}")
 
@@ -125,7 +125,7 @@ def calibrate_camera(object_points: np.ndarray, image_points: np.ndarray, image_
 
     """
     ret, intrinsic_matrix, distortion_coeffs, rotation_vecs, translation_vecs = cv2.calibrateCamera(object_points, image_points, image_size[::-1], None, None)
-    np.savez('calibration_result_1608.npz', intrinsic_matrix=intrinsic_matrix, distortion_coeffs=distortion_coeffs,
+    np.savez('calibration_result_2608.npz', intrinsic_matrix=intrinsic_matrix, distortion_coeffs=distortion_coeffs,
             rotation_vecs=rotation_vecs, translation_vecs=translation_vecs)
 
     print('\nIntrinsic Matrix:\n', intrinsic_matrix)
@@ -223,13 +223,13 @@ def main() -> None:
     square_size = 22 # millimeters
 
     # Path to calibration images
-    image_dir = 'Projects_GE_VIO/camera_calibration/dataset_images/*.png'
+    image_dir = 'Projects_GE_VIO/camera_calibration/dataset_images_uav/*.png'
     calibration_images = glob.glob(image_dir)
 
     print(f'Number of images read: {len(calibration_images)}')
 
     # Process images to detect corners and prepare object points
-    object_points, image_points, objp = process_images(calibration_images, 52, chessboard_size, square_size, termination_criteria)
+    object_points, image_points, objp = process_images(calibration_images, 15, chessboard_size, square_size, termination_criteria)
 
     # Calibrate the camera
     example_image = cv2.imread(calibration_images[0])

@@ -3,6 +3,58 @@ import numpy as np
 import glob
 import os
 
+def undistort_image(image_path, intrinsic_matrix, distortion_coeffs):
+    # Load the image
+    image = cv2.imread(image_path)
+    
+    # Get the image size
+    h, w = image.shape[:2]
+    
+    # Undistort the image
+    undistorted_image = cv2.undistort(image, intrinsic_matrix, distortion_coeffs, None)
+    
+    # Show the original and undistorted images
+    cv2.imshow("Original Image", image)
+    cv2.imshow("Undistorted Image", undistorted_image)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    
+    return undistorted_image
+
+def validate_calibration(object_points, image_points, rotation_vecs, translation_vecs, intrinsic_matrix, distortion_coeffs):
+    """
+    Validate camera calibration by reprojecting 3D object points onto the 2D image plane and comparing
+    them with the original image points.
+
+    Args:
+        object_points (list): List of 3D object points.
+        image_points (list): List of 2D image points.
+        rotation_vecs (list): List of rotation vectors.
+        translation_vecs (list): List of translation vectors.
+        intrinsic_matrix (np.ndarray): Intrinsic matrix of the camera.
+        distortion_coeffs (np.ndarray): Distortion coefficients of the camera.
+
+    Returns:
+        float: Mean reprojection error.
+    """
+
+    total_error = 0
+    total_points = 0
+
+    for i in range(len(object_points)):
+        # Project 3D object points to the image plane
+        projected_image_points, _ = cv2.projectPoints(object_points[i], rotation_vecs[i], translation_vecs[i], intrinsic_matrix, distortion_coeffs)
+        
+        # Calculate the error between the detected and reprojected points
+        error = cv2.norm(image_points[i], projected_image_points, cv2.NORM_L2) / len(projected_image_points)
+        total_error += error
+        total_points += len(projected_image_points)
+
+    mean_error = total_error / len(object_points)
+    print(f"\nMean Reprojection Error: {mean_error}")
+
+    return mean_error
+
 def draw_axes(img: np.ndarray, corners: np.ndarray, imgpts: np.ndarray) -> np.ndarray:
     """Draw 3D axes on the image.
 
@@ -110,7 +162,7 @@ def prepare_object_points(square_size: float, pattern_size: tuple) -> np.ndarray
                             0:pattern_size[1]*square_size:square_size].T.reshape(-1, 2)
     return objp
 
-def process_images(image_paths: list, pattern_size: tuple, objp: np.ndarray, criteria: tuple, intrinsic_matrix: np.ndarray, distortion_coeffs: np.ndarray, axis: np.ndarray) -> None:
+def process_images(image_paths: list, num_images: int, pattern_size: tuple, objp: np.ndarray, criteria: tuple, intrinsic_matrix: np.ndarray, distortion_coeffs: np.ndarray, axis: np.ndarray, show: bool = False) -> tuple:
     """
     Process each image, find corners, and draw 3D axes.
     
@@ -122,82 +174,77 @@ def process_images(image_paths: list, pattern_size: tuple, objp: np.ndarray, cri
         intrinsic_matrix (ndarray): Camera intrinsic matrix.
         distortion_coeffs (ndarray): Camera distortion coefficients.
         axis (ndarray): 3D coordinates of the axes.
+    
     Returns:
-        None
-    Raises:
-        None
+        tuple: Object points, image points, rotation vectors, translation vectors.
     """
+    objpoints = []  # 3D point in real world space
+    imgpoints = []  # 2D points in image plane
+    rvecs = []  # Rotation vectors
+    tvecs = []  # Translation vectors
+
     for idx, fname in enumerate(image_paths):
-        if idx % 50 == 0:
+        if idx % int(len(image_paths)/num_images) == 0:
             print(f"Processing image {idx}")
 
             img = cv2.imread(fname)
             gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            ret, corners = cv2.findChessboardCorners(gray_image, (pattern_size[0], pattern_size[1]), cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FILTER_QUADS) #PDI
-
-            cv2.imshow('img', img) # Deletar
+            ret, corners = cv2.findChessboardCorners(gray_image, (pattern_size[0], pattern_size[1]), cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FILTER_QUADS)
 
             if ret:
-                corners2 = cv2.cornerSubPix(gray_image, corners, (11, 11), (-1, -1), criteria)
+                objpoints.append(objp)
+                cv2.cornerSubPix(gray_image, corners, (11, 11), (-1, -1), criteria)
+                imgpoints.append(corners)
 
-                # Find the rotation and translation vectors.
-                _, rvecs, tvecs, _ = cv2.solvePnPRansac(objp, corners2, intrinsic_matrix, distortion_coeffs)
+                # SolvePnP to find the rotation and translation vectors
+                ret, rvecs_i, tvecs_i = cv2.solvePnP(objp, corners, intrinsic_matrix, distortion_coeffs)
+                rvecs.append(rvecs_i)
+                tvecs.append(tvecs_i)
 
-                # Project 3D points to image plane
-                imgpts, _ = cv2.projectPoints(axis, rvecs, tvecs, intrinsic_matrix, distortion_coeffs)
-                img2 = draw_axes(img, corners2, imgpts)
-                # extrinsic_matrix = general_projection_matrix(intrinsic_matrix, np.hstack((np.eye(3), np.zeros((3, 1)))), 1, np.array([int(corners2[0][0][0]), int(corners2[0][0][1]), 1], dtype=np.int32), np.array([-110,-66,30,1]).T)
+                # Project the 3D points to the image plane
+                imgpts, _ = cv2.projectPoints(axis, rvecs_i, tvecs_i, intrinsic_matrix, distortion_coeffs)
 
-                # Show the image with 3D axes
-                cv2.imshow('img2', img2)
-                if cv2.waitKey(100) & 0xFF == ord('s'):
-                    cv2.imwrite(f"output_{idx}.png", img)
+                # Draw the axes on the image
+                img = draw_axes(img, corners, imgpts)
 
-                # Calculate the position of the board in the camera's coordinate system
-                # lambda * 2D_point  =     K     *      pi    *   E   *   3D_point
-                # lambda * [x,y,1].T = intrinsic * [eye(3)|0] * [R|t] * [X,Y,Z,1].T
-                # scalar *   3x1     =    3x3    *     3x4    *  4x4  *    4x1
-                
-                # pixel_position = camera_model('pixel', intrinsic_matrix, np.hstack((np.eye(3), np.zeros((3, 1)))), np.array([0,0,30,1]).T)
-                # world_position = camera_model('position', intrinsic_matrix, np.hstack((np.eye(3), np.zeros((3, 1)))), corners)
-                # print(f"\nPixel position: {pixel_position.ravel()}")
-                # print(f"World position: {world_position.ravel()}")
-                # board_position = calculate_chessboard_position(corners2[0][0], intrinsic_matrix, 1)
-                # print(f"Board position in camera coordinate system (image {idx}): \n{board_position.ravel()}")
-                
-                
-
+                # Save the image with the drawn axes
+                # filename = os.path.join("output_images", f"result_{idx}.png")
+                if show:
+                    cv2.imshow("output_images", img)
+                    cv2.waitKey(100)
+    
     cv2.destroyAllWindows()
 
-def main() -> None:
-    # Main script execution
-    path_main = os.path.dirname(__file__)
-    calibration_file = os.path.join(path_main, 'calibration_result_16-08.npz')
+    return objpoints, imgpoints, rvecs, tvecs
 
-
+def main():
+    # Load calibration data
+    calibration_file = 'Projects_GE_VIO/camera_calibration/calibration_result_2608.npz'
     intrinsic_matrix, distortion_coeffs, rotation_matrix, translation_vector = load_calibration_data(calibration_file)
-    print(f"\nIntrinsic Matrix:\n {intrinsic_matrix}")
     
-    # Termination criteria for corner sub-pixel refinement
+    # Path to calibration images
+    image_dir = 'Projects_GE_VIO/camera_calibration/dataset_images_uav/*.png'
+    image_paths = glob.glob(image_dir)
+
+    # Number of images to process and the size of the chessboard pattern
+    num_images = 200
+    pattern_size = (7,10)
+
+    # Prepare object points and criteria
+    objp = prepare_object_points(22, pattern_size)
     criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
-
-    # Chessboard parameters
-    square_size = 22  # Size of a square on the chessboard in your units (e.g., millimeters)
-    chessboard_size = (10, 7)  # Number of inner corners per chessboard row and column (l, c)
     
-    # Prepare object points
-    objp = prepare_object_points(square_size, chessboard_size)
+    # Define the axis for the 3D points
+    axis_length = 3  # Adjust the length of the axes as needed
+    axis = np.float32([[axis_length, 0, 0], [0, axis_length, 0], [0, 0, -axis_length]]).reshape(-1, 3)
 
-    # Define the axis size for plotting on the image
-    axis = np.float32([[100, 0, 0], [0, 100, 0], [0, 0, 100]]).reshape(-1, 3)
-
-    # Load images
-    image_dir = os.path.join(path_main, 'dataset_images')
-    images = glob.glob(os.path.join(image_dir, '*.png'))
-    print(f'\nNumber of images read: {len(images)}\n')
-
-    # Process images
-    process_images(images, chessboard_size, objp, criteria, intrinsic_matrix, distortion_coeffs, axis)
+    # Validate calibration
+    objpoints, imgpoints, rvecs, tvecs = process_images(image_paths, num_images, pattern_size, objp, criteria, intrinsic_matrix, distortion_coeffs, axis)
+    validate_calibration(objpoints, imgpoints, rvecs, tvecs, intrinsic_matrix, distortion_coeffs)
+    
+    # # Undistort image
+    # image_path = "test_image.png"
+    # undistorted_image = undistort_image(image_path, intrinsic_matrix, distortion_coeffs)
 
 if __name__ == "__main__":
     main()
