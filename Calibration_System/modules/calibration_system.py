@@ -39,7 +39,9 @@ class Bebop2CameraCalibration:
     def capture_images(
             self, 
             attempts: int = 50, 
-            buffer_size: int = 10, 
+            buffer_size: int = 10,
+            save: bool = False,
+            path: str = None,
             prep_time: int = 10, 
             capture_time: int = 30
         ) -> bool:
@@ -48,6 +50,8 @@ class Bebop2CameraCalibration:
         Args:
             - attempts (int): Number of connection attempts to the Bebop drone. Default is 50.
             - buffer_size (int): Size of the image buffer. Default is 10.
+            - save (bool): Flag indicating whether to save the images or not. Default is False.
+            - path (str): The path where the images should be saved. Default is None.
             - prep_time (int): Time in seconds to prepare before capturing images. Default is 10.
             - capture_time (int): Time in seconds to capture images. Default is 30.
         Returns:
@@ -60,7 +64,7 @@ class Bebop2CameraCalibration:
         
         bebop_vision = DroneVision(self.bebop, Model.BEBOP, buffer_size=buffer_size)
         user_vision = UserVision(bebop_vision)
-        bebop_vision.set_user_callback_function(user_vision.save_image, user_callback_args=None)
+        bebop_vision.set_user_callback_function(user_vision.save_image(save=save, path=path), user_callback_args=None)
         
         success = bebop_vision.open_video()
         if not success:
@@ -209,7 +213,7 @@ class Bebop2CameraCalibration:
             - None
         """
         np.savez(
-            os.path.join(file_name, '.npz'), 
+            file_name, 
             intrinsic_matrix=intrinsic_matrix, 
             distortion_coeffs=distortion_coeffs, 
             rotation_vecs=rotation_vecs, 
@@ -378,9 +382,10 @@ class Bebop2CameraCalibration:
         Returns:
             None
         """
-        ax_movement = self.plot_camera_movement(rotation_vecs, translation_vecs, object_points) #np.meshgrid(object_points[:, 0], object_points[:, 1])
+        ax_movement = self.plot_camera_movement(rotation_vecs, translation_vecs, np.meshgrid(object_points[:, 0], object_points[:, 1]))
         ax_movement.view_init(elev=-61, azim=-90)
         ax_movement._dist = 8
+        plt.show()
         
         ax_pattern = self.plot_moving_pattern(rotation_vecs, translation_vecs, object_points)
         ax_pattern.view_init(elev=-45, azim=-90)
