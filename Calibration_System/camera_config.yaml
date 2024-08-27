@@ -24,17 +24,23 @@ BEBOPs:
         - 0.0
         - 0.0
   
-  B6:
+  B6: # B6_2
     model: "pinhole"
     resolution:
       width: 856
       height: 480
     intrinsic_parameters:
-      fx: 595.4
-      fy: 583.1
-      cx: 425.4
-      cy: 268.6
+      fx: 540.79
+      fy: 532.62
+      cx: 430.75
+      cy: 241.24
       rd: 0.0
+    distortion_coefficients:
+      c1: -6.40528596e-03
+      c2:  7.32071950e-02
+      c3: -4.52528475e-05
+      c4:  1.74188724e-03
+      c5: -8.43160051e-02
   
   # Add similar blocks for camera_3 to camera_8
 

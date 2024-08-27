@@ -3,6 +3,7 @@ import glob
 import numpy as np
 
 from modules.calibration_system import Bebop2CameraCalibration
+from typing import Tuple
 
 # Initialize the main directory path and the camera calibration object.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,7 +29,7 @@ def capture_images(B: Bebop2CameraCalibration, save: bool = False, dataset_name:
     else:
         print("Failed to capture images.")
         
-def intrinsic_calibration(B: Bebop2CameraCalibration, name_file: str = 'B6_?.npz') -> None:
+def intrinsic_calibration(B: Bebop2CameraCalibration, resolution_image: Tuple[int,int],  name_file: str = 'B6_?.npz') -> None:
     """
     Perform intrinsic calibration of the camera using the provided Bebop2CameraCalibration object.
     
@@ -41,7 +42,7 @@ def intrinsic_calibration(B: Bebop2CameraCalibration, name_file: str = 'B6_?.npz
     _, intrinsic_matrix, distortion_coeffs, rotation_vecs, translation_vecs = B.calibrate_camera(
         object_points=object_points,
         image_points=image_points,
-        image_size=(1280, 720)
+        image_size=resolution_image
     )
     
     print(f'\nIntrinsic matrix:\n{intrinsic_matrix}\n')
@@ -108,13 +109,13 @@ if __name__ == '__main__':
     # Uncomment the line below to capture images and save them.
     # capture_images(B[0],save=True, dataset_name='datasets/uav_B6_3')
 
-    image_files = glob.glob(os.path.join(datasets_path, 'uav_B6_1/*.png'))
+    image_files = glob.glob(os.path.join(datasets_path, 'board_B6_1/*.png'))
     
     print(f"\nImages found: {len(image_files)}\n")
     if len(image_files) > 1:
-        object_points, image_points, object_pattern = B[0].process_images(image_files=image_files, num_images=15, display=True)
+        object_points, image_points, object_pattern = B[0].process_images(image_files=image_files, num_images=20, display=False)
 
-        intrinsic_calibration(B[0])
+        intrinsic_calibration(B[0], resolution_image=(480,856))
         extrinsic_calibration(B[0])
         validate_calibration(B[0])
     

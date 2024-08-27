@@ -105,6 +105,10 @@ class Bebop2CameraCalibration:
         object_points = []
         image_points = []
         
+        if num_images >= 150:
+            print("\n\nToo many images to process. Limiting to 150 images.\n\n")
+            num_images = 150
+
         print(f"Processing {num_images} images: ", end='')
         for idx, image_file in enumerate(image_files):
             if idx % (len(image_files) // num_images) == 0:
