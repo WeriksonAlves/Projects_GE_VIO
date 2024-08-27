@@ -2,15 +2,15 @@ import os
 import glob
 import numpy as np
 
-from modules.calibration_system import Bebop2CameraCalibration
+from modules import *
 from typing import Tuple
 
 # Initialize the main directory path and the camera calibration object.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-results_path = os.path.join(BASE_DIR, 'results')
-datasets_path = os.path.join(BASE_DIR, 'datasets')
+results_path = os.path.join(BASE_DIR, 'results/calibration')
+datasets_path = os.path.join(BASE_DIR, 'datasets/calibration')
 
-def capture_images(B: Bebop2CameraCalibration, save: bool = False, dataset_name: str = 'uav_B6_?') -> None:
+def capture_images(B: CameraCalibration, save: bool = False, dataset_name: str = 'uav_B6_?') -> None:
     """
     Capture images using the Bebop2CameraCalibration object.
     
@@ -29,7 +29,7 @@ def capture_images(B: Bebop2CameraCalibration, save: bool = False, dataset_name:
     else:
         print("Failed to capture images.")
         
-def intrinsic_calibration(B: Bebop2CameraCalibration, resolution_image: Tuple[int,int],  name_file: str = 'B6_?.npz') -> None:
+def intrinsic_calibration(B: CameraCalibration, resolution_image: Tuple[int,int],  name_file: str = 'B6_?.npz') -> None:
     """
     Perform intrinsic calibration of the camera using the provided Bebop2CameraCalibration object.
     
@@ -52,7 +52,7 @@ def intrinsic_calibration(B: Bebop2CameraCalibration, resolution_image: Tuple[in
     result_file = os.path.join(results_path, name_file)
     B.save_calibration(result_file, intrinsic_matrix, distortion_coeffs, rotation_vecs, translation_vecs)
 
-def extrinsic_calibration(B: Bebop2CameraCalibration, name_file: str = 'B6_?.npz') -> None:
+def extrinsic_calibration(B: CameraCalibration, name_file: str = 'B6_?.npz') -> None:
     """
     Perform extrinsic calibration using the given Bebop2CameraCalibration object and the specified calibration file.
     
@@ -69,13 +69,14 @@ def extrinsic_calibration(B: Bebop2CameraCalibration, name_file: str = 'B6_?.npz
     print(f'Intrinsic matrix:\n{intrinsic_matrix}\n')
     print(f'Distortion coefficients:\n{distortion_coeffs.ravel()}\n')
 
-    B.display_extrinsic_parameters(
+    display = DisplayPosture()
+    display.display_extrinsic_parameters(
         np.hstack(rotation_vectors),
         np.hstack(translation_vectors),
         object_pattern
     )
 
-def validate_calibration(B: Bebop2CameraCalibration, name_file:str = 'B6_?.npz') -> None:
+def validate_calibration(B: CameraCalibration, name_file:str = 'B6_?.npz') -> None:
     """
     Validates the calibration of the Bebop2 camera.
     
@@ -102,20 +103,18 @@ def validate_calibration(B: Bebop2CameraCalibration, name_file:str = 'B6_?.npz')
 
 
 if __name__ == '__main__':
-    B = [None]*1
-    for i in range(len(B)): 
-        B[i] = Bebop2CameraCalibration(axis_length=80)
+    B = CameraCalibration()
 
     # Uncomment the line below to capture images and save them.
     # capture_images(B[0],save=True, dataset_name='datasets/uav_B6_3')
 
-    image_files = glob.glob(os.path.join(datasets_path, 'board_B6_1/*.png'))
+    image_files = glob.glob(os.path.join(datasets_path, 'imgs/*.jpg'))#'board_B6_1/*.png'))
     
     print(f"\nImages found: {len(image_files)}\n")
     if len(image_files) > 1:
-        object_points, image_points, object_pattern = B[0].process_images(image_files=image_files, num_images=20, display=False)
+        object_points, image_points, object_pattern = B.process_images(image_files=image_files, num_images=30, display=False)
 
-        intrinsic_calibration(B[0], resolution_image=(480,856))
-        extrinsic_calibration(B[0])
-        validate_calibration(B[0])
+        intrinsic_calibration(B, resolution_image=(640,480))#(480,856))
+        validate_calibration(B)
+        extrinsic_calibration(B)
     

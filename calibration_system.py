@@ -10,8 +10,8 @@ from pyparrot.Bebop import Bebop
 from pyparrot.DroneVision import DroneVision
 from mpl_toolkits.mplot3d import Axes3D
 
+# This class likely represents a camera calibration process for a Bebop 2 drone.
 class Bebop2CameraCalibration:
-
     def __init__(
             self,
             chessboard_size: Tuple[int, int] = (7, 10),        
