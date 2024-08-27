@@ -1,58 +1,48 @@
-# Camera Resectioning
+# UAV Camera Calibration System
 
-**Camera Resectioning Overview**  
-Camera resectioning is the process of estimating the parameters of a pinhole camera model to determine the association between incoming light rays and image pixels. This process is key in applications such as stereo vision and 3D reconstruction, where understanding the camera's pose (position and orientation) and its internal settings (focal length, pixel size, etc.) is crucial.
+This repository contains routines and scripts to perform camera calibration for UAVs, specifically designed for the Parrot Bebop2 drone. The project enables accurate calibration of the camera's intrinsic and extrinsic parameters, facilitating reliable navigation and pose estimation in real-world environments.
 
-**Camera Parameters**  
-The parameters of a camera are often encapsulated in a 3 × 4 projection matrix known as the camera matrix. This matrix combines both intrinsic and extrinsic parameters:
+## Features
 
-- **Intrinsic Parameters**: Describe the camera's internal characteristics, including focal length, pixel dimensions, and the principal point (the image center). These are typically represented in a matrix \(K\), which also includes a skew coefficient.
-  
-- **Extrinsic Parameters**: Define the camera's pose relative to the world coordinate system. This includes a 3 × 3 rotation matrix \(R\) and a translation vector \(T\).
+- **Image Capture**: Capture images directly from the drone's camera for calibration purposes.
+- **Intrinsic Calibration**: Calculate the intrinsic matrix and distortion coefficients of the camera.
+- **Extrinsic Calibration**: Determine the camera's pose (rotation and translation) relative to a known object pattern.
+- **Calibration Validation**: Validate the calibration results by comparing the re-projected points with the original image points.
 
-**Projection and Homogeneous Coordinates**  
-In camera resectioning, 2D image points and 3D world points are represented using homogeneous coordinates. The projection matrix \(M\) is used to map 3D world coordinates to 2D pixel coordinates. This process can be expressed mathematically as:
+## Prerequisites
 
-\[ M = K [R | T] \]
+- Python 3.9
+- NumPy
+- OpenCV
+- Matplotlib
+- PyParrot (for drone communication)
 
-Where:
-- \(K\) is the intrinsic matrix.
-- \([R | T]\) is the extrinsic matrix.
+## Installation
 
-The image coordinates \(u\) and \(v\) are derived by applying the projection matrix to the world coordinates.
+1. Clone this repository
 
-**Application in Stereo Vision**  
-Camera resectioning is critical in stereo vision, where the projection matrices of two cameras are used to calculate the 3D coordinates of points seen by both cameras.
+2. Install the required Python packages:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-**Nonlinear Parameters**  
-In addition to the linear intrinsic parameters, nonlinear factors like lens distortion are also important. These are usually estimated through optimization techniques such as bundle adjustment.
+3. Set up the project structure:
+    - Place your drone camera images in the `datasets/` directory.
+    - Ensure the directory structure is maintained as follows:
+      ```
+      UAV-Camera-Calibration/
+      ├── datasets/
+      │   └── uav_B6_1/
+      ├── results/
+      └── scripts/
+      ```
 
-**Importance in Computer Vision**  
-Camera calibration, which includes both resectioning and distortion estimation, is a foundational step in many computer vision tasks. By understanding the relationship between the 3D world and its 2D projection, various applications such as object tracking, 3D reconstruction, and navigation become possible.
+## File Structure
 
----
+- **`modules/calibration_system.py`**: Core module containing the calibration logic.
+- **`datasets/`**: Directory to store images captured by the drone.
+- **`results/`**: Directory where calibration results (intrinsic matrix, distortion coefficients, etc.) are saved.
 
-# Bebop2 Camera Calibration using Python
+## Contributing
 
-This repository provides scripts to estimate the intrinsic and extrinsic parameters of the Bebop2 camera using Visual-Inertial Odometry (VIO) and Python.
-
-## Overview
-
-### 1. **Intrinsic Parameters Estimation**
-   - **Objective**: Determine the focal length, optical center, and lens distortion coefficients.
-   - **Method**: Capture multiple images of a checkerboard pattern and use OpenCV functions (`cv2.calibrateCamera`) for calibration.
-   - **Output**: Intrinsic matrix and distortion coefficients.
-
-### 2. **Extrinsic Parameters Estimation**
-   - **Objective**: Estimate the rotation and translation between the camera and the IMU.
-   - **Method**: Utilize rotation and translation vectors from intrinsic calibration and refine using optimization techniques.
-   - **Output**: Extrinsic matrix.
-
-## Usage
-
-1. **Install dependencies**: `pip install -r requirements.txt`
-2. **Capture calibration images**: Use a checkerboard pattern.
-3. **Run calibration**: Execute the provided scripts to compute the intrinsic and extrinsic parameters.
-4. **Verify**: Use test images to assess the calibration quality by calculating the reprojection error.
-
----
+Contributions are welcome! Please open an issue or submit a pull request.
