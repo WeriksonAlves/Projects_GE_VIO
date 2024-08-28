@@ -1,7 +1,8 @@
-from .auxiliary.model import Model
-from .auxiliary.userVision import UserVision
-from .auxiliary.display import DisplayPosture
+from .auxiliary.Model import Model
+from .auxiliary.DisplayPostureCamera import DisplayPostureCamera
 
-from .camera_calibration import CameraCalibration
+from .calibration.Camera import Camera
+
+from .feature.FeatureMatching import MySIFT
 
 # from .posture import Posture

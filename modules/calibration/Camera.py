@@ -1,31 +1,32 @@
-import os
 import cv2
-
+import os
 import numpy as np
-import matplotlib.pyplot as plt
 
-from typing import List, Tuple, Optional
-from enum import Enum, auto
+
+from ..auxiliary.Model import Model
+
+from typing import List, Tuple
 from pyparrot.Bebop import Bebop
 from pyparrot.DroneVision import DroneVision
-from mpl_toolkits.mplot3d import Axes3D
+
 
 # This class likely represents a camera calibration process for a Bebop 2 drone.
-class Bebop2CameraCalibration:
+class Camera:
     def __init__(
             self,
+            uav: Bebop,
             chessboard_size: Tuple[int, int] = (7, 10),        
             square_size: int = 22,        
-            criteria: Tuple[int, int, float] = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001),        
-            axis_length: float = 1.5
+            criteria: Tuple[int, int, float] = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
         ):
+        
         """
         Initializes the CalibrationSystem object.
         Args:
-            - chessboard_size (Tuple[int, int]): The size of the chessboard as a tuple of integers (rows, columns).
-            - square_size (int): The size of each square in the chessboard.
-            - criteria (Tuple[int, int, float]): The criteria used for calibration.
-            - axis_length (float): The length of the axis used for visualization.
+            uav (Bebop): The Bebop object used for image capture.
+            chessboard_size (Tuple[int, int]): The size of the chessboard as a tuple of integers (rows, columns).
+            square_size (int): The size of each square in the chessboard (mm).
+            criteria (Tuple[int, int, float]): The criteria used for calibration.
         Returns:
             None
         """
@@ -33,8 +34,7 @@ class Bebop2CameraCalibration:
         self.chessboard_size = chessboard_size
         self.square_size = square_size
         self.criteria = criteria
-        self.axis_length = axis_length
-        self.bebop = Bebop()
+        self.bebop = uav
     
     def capture_images(
             self, 
@@ -64,7 +64,7 @@ class Bebop2CameraCalibration:
         
         bebop_vision = DroneVision(self.bebop, Model.BEBOP, buffer_size=buffer_size)
         user_vision = UserVision(bebop_vision)
-        bebop_vision.set_user_callback_function(user_vision.save_image(save=save, path=path), user_callback_args=None)
+        bebop_vision.set_user_callback_function(user_vision.save_image, user_callback_args=(save,path))
         
         success = bebop_vision.open_video()
         if not success:
@@ -109,10 +109,12 @@ class Bebop2CameraCalibration:
             print("\n\nToo many images to process. Limiting to 150 images.\n\n")
             num_images = 150
 
-        print(f"Processing {num_images} images: ", end='')
+        print(f"Processed images: ", end='')
+        count = 0
         for idx, image_file in enumerate(image_files):
             if idx % (len(image_files) // num_images) == 0:
                 print(f"{idx} ", end='', flush=True)
+                count += 1
                 image = cv2.imread(image_file)
                 gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
                 
@@ -128,7 +130,7 @@ class Bebop2CameraCalibration:
                         cv2.waitKey(100)
         
         cv2.destroyAllWindows()
-        print(f'\n\nNumber of images where corners were detected: {len(object_points)}')
+        print(f'\nTotal of images processed {count}\nNumber of images where corners were detected: {len(object_points)}')
         
         return object_points, image_points, obj_pattern
     
@@ -246,170 +248,6 @@ class Bebop2CameraCalibration:
             
         return intrinsic_matrix, distortion_coeffs, rotation_matrix, translation_vector
     
-    def setup_3d_plot(
-        self,
-        ax: Optional[Axes3D] = None,
-        figsize: Tuple[int, int] = (9, 8),
-        projection: str = '3d',
-        x_lim: Tuple[int, int] = (-2, 2),
-        y_lim: Tuple[int, int] = (-2, 2),
-        z_lim: Tuple[int, int] = (-2, 2)
-    ) -> Axes3D:
-        """
-        Set up a 3D plot with specified axis limits and labels.
-        
-        Args:
-            ax (Axes3D, optional): The 3D axes to plot on. If None, a new one will be created.
-            figsize (tuple, optional): The size of the figure in inches. Default is (9, 8).
-            x_lim (tuple, optional): The limits of the x-axis. Default is (-2, 2).
-            y_lim (tuple, optional): The limits of the y-axis. Default is (-2, 2).
-            z_lim (tuple, optional): The limits of the z-axis. Default is (-2, 2).
-        
-        Returns:
-            Axes3D: The 3D axes object.
-        """
-        if ax is None:
-            fig = plt.figure(figsize=figsize)
-            ax = fig.add_subplot(111, projection=projection)
-        
-        ax.set_xlim(x_lim)
-        ax.set_ylim(y_lim)
-        ax.set_zlim(z_lim)
-        ax.set_xlabel("X axis")
-        ax.set_ylabel("Y axis")
-        ax.set_zlabel("Z axis")
-        ax.set_title("Camera Calibration")
-        
-        return ax
-    
-    def plot_camera_axes(
-        self,
-        origin: Tuple[float, float, float],
-        rotation_matrix: np.ndarray,
-        ax: Axes3D
-    ) -> Axes3D:
-        """
-        Plot the camera axes on the given 3D axis.
-        
-        Args:
-            origin (tuple): The origin of the camera axes.
-            rotation_matrix (np.ndarray): The rotation matrix for the camera.
-            ax (Axes3D): The 3D axis to plot on.
-        
-        Returns:
-            Axes3D: The modified 3D axis.
-        """
-        axis_colors = ['red', 'green', 'blue']
-        
-        for i in range(3):
-            ax.quiver(
-                origin[0], origin[1], origin[2],
-                rotation_matrix[0, i], rotation_matrix[1, i], rotation_matrix[2, i],
-                color=axis_colors[i], pivot='tail', length=self.axis_length
-            )
-        
-        return ax
-    
-    def plot_camera_movement(
-        self,
-        rotation_vecs: np.ndarray,
-        translation_vecs: np.ndarray,
-        object_points: np.ndarray
-    ) -> Axes3D:
-        """
-        Plot the camera movement in a 3D plot.
-        
-        Args:
-            rotation_vecs (np.ndarray): Array of rotation vectors.
-            translation_vecs (np.ndarray): Array of translation vectors.
-            object_points (np.ndarray): Array of object points.
-        
-        Returns:
-            Axes3D: The 3D plot with the camera movement.
-        """
-        ax = self.setup_3d_plot(x_lim=[-500, 500], y_lim=[-500, 500], z_lim=[-1000, 0])
-        unit_vectors = np.eye(3).T
-        camera_positions = np.zeros(translation_vecs.shape)
-        
-        for i in range(rotation_vecs.shape[1]):
-            rotation_matrix, _ = cv2.Rodrigues(rotation_vecs[:, i])
-            camera_positions[:, i] = -rotation_matrix.T @ translation_vecs[:, i]
-            rotated_axes = rotation_matrix.T @ unit_vectors
-            ax = self.plot_camera_axes(camera_positions[:, i], rotated_axes, ax)
-        
-        ax.plot_wireframe(object_points[0], object_points[1], np.zeros_like(object_points[0]))
-        
-        return ax
-
-    def plot_moving_pattern(
-        self,
-        rotation_vecs: np.ndarray,
-        translation_vecs: np.ndarray,
-        object_points: np.ndarray
-    ) -> Axes3D:
-        """
-        Plot the moving pattern of a camera calibration.
-        
-        Args:
-            rotation_vecs (np.ndarray): Array of rotation vectors.
-            translation_vecs (np.ndarray): Array of translation vectors.
-            object_points (np.ndarray): Array of object points.
-        
-        Returns:
-            Axes3D: The 3D plot axes.
-        """
-        ax = self.setup_3d_plot(x_lim=[-500, 500], y_lim=[-500, 500], z_lim=[0, 1000])
-        unit_vectors = np.eye(3)
-        ax = self.plot_camera_axes([0, 0, 0], unit_vectors, ax)
-        
-        for i in range(rotation_vecs.shape[1]):
-            rotation_matrix, _ = cv2.Rodrigues(rotation_vecs[:, i])
-            rotated_objp = rotation_matrix @ object_points.T + translation_vecs[:, i].reshape(-1, 1)
-            ax.scatter(rotated_objp[0, :], rotated_objp[1, :], rotated_objp[2, :])
-        
-        return ax
-    
-    def display_extrinsic_parameters(
-        self,
-        rotation_vecs: np.ndarray,
-        translation_vecs: np.ndarray,
-        object_points: np.ndarray
-    ) -> None:
-        """
-        Display the extrinsic parameters of a camera calibration.
-        
-        Args:
-            rotation_vecs (np.ndarray): Array of rotation vectors.
-            translation_vecs (np.ndarray): Array of translation vectors.
-            object_points (np.ndarray): Array of object points.
-        
-        Returns:
-            None
-        """
-        ax_movement = self.plot_camera_movement(rotation_vecs, translation_vecs, np.meshgrid(object_points[:, 0], object_points[:, 1]))
-        ax_movement.view_init(elev=-61, azim=-90)
-        ax_movement._dist = 8
-        plt.show()
-        
-        ax_pattern = self.plot_moving_pattern(rotation_vecs, translation_vecs, object_points)
-        ax_pattern.view_init(elev=-45, azim=-90)
-        ax_pattern._dist = 8
-        
-        plt.show()
-
-class Model(Enum):
-    """
-    Enum class representing different models.
-    
-    Attributes:
-        BEBOP: Model representing Bebop.
-        MAMBO: Model representing Mambo.
-        ANAFI: Model representing Anafi.
-    """
-    BEBOP = auto()
-    MAMBO = auto()
-    ANAFI = auto()
-
 class UserVision:
     def __init__(self, vision: DroneVision):
         """
@@ -418,10 +256,10 @@ class UserVision:
         Args:
             vision (DroneVision): The DroneVision object responsible for image capture.
         """
-        self.image_index = 0
+        self.image_index = 1
         self.vision = vision
     
-    def save_image(self, save: bool = False, path: str = None) -> None:
+    def save_image(self, save: bool = False, dataset_path: str = None)-> None:
         """
         Saves the latest valid picture captured by the vision system.
         Args:
@@ -431,16 +269,14 @@ class UserVision:
             None
         """
         image = self.vision.get_latest_valid_picture()
-        
+        cv2.imshow('Captured Image', image)
+        cv2.waitKey(1)
+
         if image is not None:
-            cv2.imshow('Captured Image', image)
-            cv2.waitKey(1)
-            filename = f"calibration_image_{self.image_index:05d}.png"
-            
-            if save:
-                if not os.path.exists(path):
-                    os.makedirs(path)
-                
+            if save[0]:
+                if not os.path.exists(save[1]):
+                    os.makedirs(save[1])
+
+                filename = os.path.join(save[1],f"image_{self.image_index:04d}.png")
                 cv2.imwrite(filename, image)
-                print(f"Saved {filename}")
             self.image_index += 1

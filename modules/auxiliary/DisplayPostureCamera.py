@@ -6,7 +6,7 @@ import numpy as np
 from typing import List, Tuple, Optional
 from mpl_toolkits.mplot3d import Axes3D
 
-class DisplayPosture:
+class DisplayPostureCamera:
     @staticmethod
     def setup_3d_plot(
         ax: Optional[Axes3D] = None,
