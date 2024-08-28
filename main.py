@@ -8,6 +8,10 @@ from modules import *
 from typing import Tuple
 from pyparrot.Bebop import Bebop
 
+import cv2
+print(cv2.__version__)
+
+
 # Initialize the main directory path and the camera calibration object.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 results_path = os.path.join(BASE_DIR, 'results/calibration')
@@ -69,7 +73,7 @@ def extrinsic_calibration(B: Camera, name_file: str = 'B6_?.npz') -> None:
     result_file = os.path.join(results_path, name_file)
     _, _, rotation_vectors, translation_vectors = B.load_calibration(result_file)
 
-    display = DisplayPosture()
+    display = DisplayPostureCamera()
     display.display_extrinsic_parameters(
         np.hstack(rotation_vectors),
         np.hstack(translation_vectors),
@@ -102,7 +106,8 @@ def validate_calibration(B: Camera, name_file:str = 'B6_?.npz') -> None:
 if __name__ == '__main__':
     B6 = Bebop()
     camera = Camera(B6)
-    feature_matching = MySIFT()
+    feature_matching1 = MySIFT()
+    feature_matching2 = MySURF()
     list_mode = ['calibration', 'feature_matching', 'pose_estimation']
     mode = 1
 
@@ -119,12 +124,28 @@ if __name__ == '__main__':
             intrinsic_calibration(camera, resolution_image=(640,480))
             validate_calibration(camera)
             extrinsic_calibration(camera)
+            
     elif list_mode[mode] == 'feature_matching':
-        image_files = glob.glob(os.path.join(datasets_path, 'imgs/*.jpg')) # Raquel
-        gray_image_files = [cv2.cvtColor(cv2.imread(image), cv2.COLOR_BGR2GRAY) for image in image_files]
+        image_files = glob.glob(os.path.join(datasets_path, 'board_B6_1/*.png')) # Raquel
+        gray_image_files = [cv2.imread(image) for image in image_files]
 
-        keypoints, descriptors = feature_matching.my_detectAndCompute(gray_image_files[0])
-        feature_matching.drawKeyPoints(gray_image_files[0], keypoints)
-        feature_matching.saveKeypoints('keypoints.npz', keypoints, descriptors)
-        matches = feature_matching.matchingKeypoints(descriptors, descriptors)
+        keypoints1, descriptors1 = feature_matching1.my_detectAndCompute(gray_image_files[0])
+        feature_matching1.drawKeyPoints(gray_image_files[0], keypoints1,imagename='SIFT Keypoints 1')
+        keypoints2, descriptors2 = feature_matching1.my_detectAndCompute(gray_image_files[1])
+        feature_matching1.drawKeyPoints(gray_image_files[1], keypoints2, imagename='SIFT Keypoints 2')
+        matches = feature_matching1.matchingKeypoints(descriptors1, descriptors2)
+        matched_image = cv2.drawMatches(gray_image_files[0], keypoints1, gray_image_files[1], keypoints2, matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imshow('Matches1', matched_image)
+
+        keypoints1, descriptors1 = feature_matching1.my_detectAndCompute(gray_image_files[0])
+        feature_matching1.drawKeyPoints(gray_image_files[0], keypoints1,imagename='SURF Keypoints 1')
+        keypoints2, descriptors2 = feature_matching1.my_detectAndCompute(gray_image_files[1])
+        feature_matching1.drawKeyPoints(gray_image_files[1], keypoints2, imagename='SURF Keypoints 2')
+        matches = feature_matching1.matchingKeypoints(descriptors1, descriptors2)
+        matched_image = cv2.drawMatches(gray_image_files[0], keypoints1, gray_image_files[1], keypoints2, matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imshow('Matches2', matched_image)
+
+        # Press 'q' to close the window
+        if cv2.waitKey(0) & 0xFF == ord('q'):
+            cv2.destroyAllWindows()
     
