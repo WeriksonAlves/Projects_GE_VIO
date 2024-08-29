@@ -104,14 +104,13 @@ def validate_calibration(B: Camera, name_file:str = 'B6_?.npz') -> None:
 
 
 if __name__ == '__main__':
-    B6 = Bebop()
-    camera = Camera(B6)
-    feature_matching1 = MySIFT()
-    feature_matching2 = MySURF()
     list_mode = ['calibration', 'feature_matching', 'pose_estimation']
     mode = 1
 
     if list_mode[mode] == 'calibration':
+        B6 = Bebop()
+        camera = Camera(B6)
+        
         # Uncomment the line below to capture images and save them.
         # capture_images(camera,save=False)
 
@@ -125,27 +124,51 @@ if __name__ == '__main__':
             validate_calibration(camera)
             extrinsic_calibration(camera)
             
-    elif list_mode[mode] == 'feature_matching':
-        image_files = glob.glob(os.path.join(datasets_path, 'board_B6_1/*.png')) # Raquel
+    elif list_mode[mode] == 'feature_matching':    
+        image_files = glob.glob(os.path.join(BASE_DIR, 'datasets/test/images/*.png'))
         gray_image_files = [cv2.imread(image) for image in image_files]
+        
+        i1 = 52
+        i2 = 57
 
-        keypoints1, descriptors1 = feature_matching1.my_detectAndCompute(gray_image_files[0])
-        feature_matching1.drawKeyPoints(gray_image_files[0], keypoints1,imagename='SIFT Keypoints 1')
-        keypoints2, descriptors2 = feature_matching1.my_detectAndCompute(gray_image_files[1])
-        feature_matching1.drawKeyPoints(gray_image_files[1], keypoints2, imagename='SIFT Keypoints 2')
-        matches = feature_matching1.matchingKeypoints(descriptors1, descriptors2)
-        matched_image = cv2.drawMatches(gray_image_files[0], keypoints1, gray_image_files[1], keypoints2, matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-        cv2.imshow('Matches1', matched_image)
+        sift_feature_matching = FeatureMatching(cv2.SIFT_create())
+        sift_keypoints_1, sift_descriptors_1 = sift_feature_matching.my_detectAndCompute(gray_image_files[i1])
+        sift_keypoints_2, sift_descriptors_2 = sift_feature_matching.my_detectAndCompute(gray_image_files[i2])
+        sift_matches = sift_feature_matching.matchingKeypoints(sift_descriptors_1, sift_descriptors_2)
+        sift_matched_image = cv2.drawMatches(gray_image_files[i1], sift_keypoints_1, gray_image_files[i2], sift_keypoints_2, sift_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imshow('SIFT Matches', sift_matched_image)
+        cv2.waitKey(10)
 
-        keypoints1, descriptors1 = feature_matching1.my_detectAndCompute(gray_image_files[0])
-        feature_matching1.drawKeyPoints(gray_image_files[0], keypoints1,imagename='SURF Keypoints 1')
-        keypoints2, descriptors2 = feature_matching1.my_detectAndCompute(gray_image_files[1])
-        feature_matching1.drawKeyPoints(gray_image_files[1], keypoints2, imagename='SURF Keypoints 2')
-        matches = feature_matching1.matchingKeypoints(descriptors1, descriptors2)
-        matched_image = cv2.drawMatches(gray_image_files[0], keypoints1, gray_image_files[1], keypoints2, matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-        cv2.imshow('Matches2', matched_image)
+        orb_feature_matching = FeatureMatching(cv2.ORB_create())
+        orb_keypoints_1, orb_descriptors_1 = orb_feature_matching.my_detectAndCompute(gray_image_files[i1])
+        orb_keypoints_2, orb_descriptors_2 = orb_feature_matching.my_detectAndCompute(gray_image_files[i2])
+        orb_matches = orb_feature_matching.matchingKeypoints(orb_descriptors_1, orb_descriptors_2)
+        orb_matched_image = cv2.drawMatches(gray_image_files[i1], orb_keypoints_1, gray_image_files[i2], orb_keypoints_2, orb_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imshow('ORB Matches', orb_matched_image)
+        cv2.waitKey(10)
+
+        akaze_feature_matching = FeatureMatching(cv2.AKAZE_create())
+        akaze_keypoints_1, akaze_descriptors_1 = akaze_feature_matching.my_detectAndCompute(gray_image_files[i1])
+        akaze_keypoints_2, akaze_descriptors_2 = akaze_feature_matching.my_detectAndCompute(gray_image_files[i2])
+        akaze_matches = akaze_feature_matching.matchingKeypoints(akaze_descriptors_1, akaze_descriptors_2)
+        akaze_matched_image = cv2.drawMatches(gray_image_files[i1], akaze_keypoints_1, gray_image_files[i2], akaze_keypoints_2, akaze_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imshow('AKAZE Matches', akaze_matched_image)
+        cv2.waitKey(10)
+
+        brisk_feature_matching = FeatureMatching(cv2.BRISK_create())
+        brisk_keypoints_1, brisk_descriptors_1 = brisk_feature_matching.my_detectAndCompute(gray_image_files[i1])
+        brisk_keypoints_2, brisk_descriptors_2 = brisk_feature_matching.my_detectAndCompute(gray_image_files[i2])
+        brisk_matches = brisk_feature_matching.matchingKeypoints(brisk_descriptors_1, brisk_descriptors_2)
+        brisk_matched_image = cv2.drawMatches(gray_image_files[i1], brisk_keypoints_1, gray_image_files[i2], brisk_keypoints_2, brisk_matches[:10], None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+        cv2.imshow('BRISK Matches', brisk_matched_image)
+        cv2.waitKey(10)
+
+        fast_feature_matching = FastFeatureMatching(cv2.FastFeatureDetector_create())
+        fast_keypoints_1 = fast_feature_matching.my_detectAndCompute(gray_image_files[i1])
+        # fast_feature_matching.drawKeyPoints(gray_image_files[i1], fast_keypoints_1, imageName='FAST Keypoints')
+
 
         # Press 'q' to close the window
-        if cv2.waitKey(0) & 0xFF == ord('q'):
+        if (cv2.waitKey(0) & 0xFF == ord('q')):
             cv2.destroyAllWindows()
     

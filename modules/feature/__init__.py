@@ -1,3 +1,3 @@
-from .FeatureMatching import MySIFT
-from .FeatureMatching import MySURF
-from .FeatureMatching import MyORB
+# This file is used to import all the classes in the feature module
+
+from .FeatureMatching import *
