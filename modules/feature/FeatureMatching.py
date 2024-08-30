@@ -29,7 +29,7 @@ class FeatureMatching(FeatureMatchingInterface):
         keypoints, descriptors = self.model.detectAndCompute(gray_image, mask)
         return keypoints, descriptors
 
-    def drawKeyPoints(self, image: np.ndarray, keypoints: list, outImage: np.ndarray = None, imageName: str = 'SIFT Keypoints' ) -> None:
+    def drawKeyPoints(self, image: np.ndarray, keypoints: list, imageName: str, outImage: np.ndarray = None ) -> None:
         """
         Draws keypoints on the given image and displays the image with keypoints.
 
@@ -86,7 +86,7 @@ class FeatureMatching(FeatureMatchingInterface):
         return matches
 
 class FastFeatureMatching(FeatureMatchingInterface):
-    def __init__(self, model: cv2.FastFeatureDetector, suppression: bool = True, threshold: int = 10) -> None:
+    def __init__(self, model: cv2.FastFeatureDetector, aux_model, suppression: bool = True, threshold: int = 10) -> None:
         """
         Initializes a FeatureMatching object.
 
@@ -102,6 +102,7 @@ class FastFeatureMatching(FeatureMatchingInterface):
         # Optionally, you can set some parameters
         self.model.setNonmaxSuppression(suppression)  # Use non-maximum suppression
         self.model.setThreshold(threshold)  # Threshold for detection
+        self.aux_model = aux_model
 
     def my_detectAndCompute(self, gray_image: np.ndarray, mask: np.ndarray = None) -> list:
         """
@@ -115,7 +116,8 @@ class FastFeatureMatching(FeatureMatchingInterface):
             list: A list containing the detected keypoints.
         """
         keypoints = self.model.detect(gray_image, mask)
-        return keypoints
+        keypoints, descriptors = self.aux_model.compute(gray_image, keypoints)
+        return keypoints, descriptors
 
     def drawKeyPoints(self, image: np.ndarray, keypoints: list, outImage: np.ndarray = None, imageName: str = 'SIFT Keypoints' ) -> None:
         """
@@ -151,4 +153,12 @@ class FastFeatureMatching(FeatureMatchingInterface):
         cv2.imwrite(filename, img_keypoints)
 
     def matchingKeypoints(self, descriptors1: np.ndarray, descriptors2: np.ndarray) -> list:
-        pass
+        # Use BFMatcher to find the best matches
+        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        matches = bf.match(descriptors1, descriptors2)
+
+        # Sort the matches based on the distance (lower is better)
+        matches = sorted(matches, key=lambda x: x.distance)
+
+        return matches
+        
