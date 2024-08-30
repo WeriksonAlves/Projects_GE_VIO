@@ -1,164 +1,164 @@
-from .interfaces import FeatureMatchingInterface
-import numpy as np
+
 import cv2
+import numpy as np
 
-class FeatureMatching(FeatureMatchingInterface):
-    def __init__(self, model) -> None:
+from typing import Tuple, List, Optional, Union
+
+class FeatureExtractor:
+    def __init__(self, method: str = "AKAZE", parammeters: Union[dict,None] = None)-> None:
         """
-        Initializes a FeatureMatching object.
+        Initialize the feature extractor.
 
-        Args:
-            model: The model used for feature detection.
-
-        Returns:
-            None
+        :param method: Feature extraction method, either "AKAZE" or "FAST".
         """
-        self.model = model # Create the detector object
+        self.method = method
+        self.parammeters = parammeters
+        self.detector, self.descriptor = self._initialize_detector()
 
-    def my_detectAndCompute(self, gray_image: np.ndarray, mask: np.ndarray = None) -> tuple:
+    def _initialize_detector(self) -> Tuple[cv2.Feature2D, cv2.Feature2D]:
+        if self.method == "AKAZE":
+            detector = cv2.AKAZE_create()
+            descriptor = detector  # AKAZE combines detector and descriptor
+        elif self.method == "FAST":
+            detector = cv2.FastFeatureDetector_create()
+            detector.setNonmaxSuppression(self.parammeters['suppression'])
+            detector.setThreshold(self.parammeters['threshold'])
+            descriptor = cv2.ORB_create()
+        else:
+            raise ValueError(f"Unsupported method: {self.method}")
+        return detector, descriptor
+
+    def extract_features(self, image: np.ndarray) -> Tuple[List[cv2.KeyPoint], np.ndarray]:
         """
-        Detects keypoints and computes descriptors using the specified detector on the given gray image.
+        Extract keypoints and descriptors from an image.
 
-        Args:
-            gray_image (np.ndarray): The input gray image on which keypoints and descriptors are computed.
-            mask (np.ndarray, optional): An optional mask specifying where to detect keypoints. Defaults to None.
-
-        Returns:
-            tuple: A tuple containing the detected keypoints and computed descriptors.
+        :param image: Input image.
+        :return: Keypoints and descriptors.
         """
-        keypoints, descriptors = self.model.detectAndCompute(gray_image, mask)
+        keypoints = self.detector.detect(image, None)
+        keypoints, descriptors = self.descriptor.compute(image, keypoints)
         return keypoints, descriptors
 
-    def drawKeyPoints(self, image: np.ndarray, keypoints: list, imageName: str, outImage: np.ndarray = None ) -> None:
+
+class FeatureMatcher:
+    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check: bool = True):
         """
-        Draws keypoints on the given image and displays the image with keypoints.
+        Initialize the feature matcher.
+
+        :param norm_type: Norm type for matching, default is NORM_HAMMING.
+        :param cross_check: If true, use cross-checking in matching.
+        """
+        self.matcher = cv2.BFMatcher(norm_type, crossCheck=cross_check)
+
+    def match_features(self, des1: np.ndarray, des2: np.ndarray) -> List[cv2.DMatch]:
+        """
+        Match descriptors between two sets.
+
+        :param des1: Descriptors from the first image.
+        :param des2: Descriptors from the second image.
+        :return: List of matches.
+        """
+        matches = self.matcher.match(des1, des2)
+        return sorted(matches, key=lambda x: x.distance)
+
+
+class ModelFitter:
+    def __init__(self, reproj_thresh: float = 3.0, max_iter: int = 1000):
+        """
+        Initialize the model fitter with RANSAC parameters.
 
         Args:
-            image (np.ndarray): The input image on which keypoints will be drawn.
-            keypoints (list): List of keypoints to be drawn on the image.
-            outImage (np.ndarray, optional): Output image where the keypoints will be drawn. If not provided, a new image will be created.
-            imagename (str, optional): Name of the window to display the image with keypoints. Default is 'SIFT Keypoints'.
+            reproj_thresh (float): The maximum allowed reprojection error threshold.
+            max_iter (int): The maximum number of iterations for RANSAC.
+
+        Returns:
+            None
+        """
+        self.prob = 0.999
+        self.reproj_thresh = reproj_thresh
+        self.max_iter = max_iter
+
+    def fit_fundamental_matrix(self, pts1: np.ndarray, pts2: np.ndarray, max_iter) -> Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]:
+        """
+        Fit the fundamental matrix using RANSAC.
+
+        :param pts1: Points from the first image.
+        :param pts2: Corresponding points from the second image.
+        :return: Fundamental matrix, inliers from pts1, inliers from pts2.
+        """
+        F, mask = cv2.findFundamentalMat(pts1, pts2, cv2.FM_RANSAC, self.reproj_thresh, max_iter)
         
-        Returns:
-            None
+        # Check if a valid fundamental matrix was found
+        if F is None or mask is None:
+            print("Warning: No valid fundamental matrix found.")
+            return None, np.array([]), np.array([])
+
+        # Select inliers
+        inliers1 = pts1[mask.ravel() == 1]
+        inliers2 = pts2[mask.ravel() == 1]
+        return F, inliers1, inliers2
+
+    def fit_essential_matrix(self, pts1: np.ndarray, pts2: np.ndarray, K: np.ndarray, max_iter) -> Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]:
         """
-        # Draw keypoints on the image
-        image_with_keypoints = cv2.drawKeypoints(image, keypoints, outImage, flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        Fit the essential matrix using RANSAC.
 
-        # Display the image with keypoints
-        cv2.imshow(imageName, image_with_keypoints)
-
-    def saveKeypoints(self, filename: str, keypoints, descriptors) -> None:
+        :param pts1: Points from the first image.
+        :param pts2: Corresponding points from the second image.
+        :param K: Camera intrinsic matrix.
+        :return: Essential matrix, inliers from pts1, inliers from pts2.
         """
-        Save keypoints and descriptors to a file.
-
-        Args:
-            filename (str): The name of the file to save the keypoints and descriptors.
-            keypoints: The keypoints to be saved.
-            descriptors: The descriptors to be saved.
-
-        Returns:
-            None
-        """
-        np.savez(filename, keypoints=keypoints, descriptors=descriptors)
-
-    def matchingKeypoints(self, descriptors1: np.ndarray, descriptors2: np.ndarray) -> list:
-        """
-        Matches keypoints based on their descriptors using the Brute-Force Matcher.
-
-        Args:
-            descriptors1 (np.ndarray): Descriptors of keypoints from the first image.
-            descriptors2 (np.ndarray): Descriptors of keypoints from the second image.
-
-        Returns:
-            list: List of matches sorted by distance.
-        """
-
-        # Create a BFMatcher object
-        bf = cv2.BFMatcher(cv2.NORM_L2, crossCheck=True)
-
-        # Match descriptors
-        matches = bf.match(descriptors1, descriptors2)
-
-        # Sort matches by distance
-        matches = sorted(matches, key=lambda x: x.distance)
-
-        return matches
-
-class FastFeatureMatching(FeatureMatchingInterface):
-    def __init__(self, model: cv2.FastFeatureDetector, aux_model, suppression: bool = True, threshold: int = 10) -> None:
-        """
-        Initializes a FeatureMatching object.
-
-        Args:
-            model (cv2.FastFeatureDetector): The feature detector model.
-            suppression (bool, optional): Flag indicating whether to use non-maximum suppression. Default is True.
-            threshold (int, optional): The threshold for detection. Default is 10.
+        E, mask = cv2.findEssentialMat(pts1, pts2, K, method=cv2.RANSAC, prob=self.prob, threshold=self.reproj_thresh, maxIters=max_iter)
         
-        Returns:
-            None
+        # Check if a valid essential matrix was found
+        if E is None or mask is None:
+            print("Warning: No valid essential matrix found.")
+            return None, np.array([]), np.array([])
+
+        # Select inliers
+        inliers1 = pts1[mask.ravel() == 1]
+        inliers2 = pts2[mask.ravel() == 1]
+        return E, inliers1, inliers2
+
+
+class VisualOdometry:
+    def __init__(self, feature_extractor: FeatureExtractor, feature_matcher: FeatureMatcher, model_fitter: ModelFitter):
         """
-        self.model = model # Create the detector object
-        # Optionally, you can set some parameters
-        self.model.setNonmaxSuppression(suppression)  # Use non-maximum suppression
-        self.model.setThreshold(threshold)  # Threshold for detection
-        self.aux_model = aux_model
+        Initialize the Visual Odometry pipeline.
 
-    def my_detectAndCompute(self, gray_image: np.ndarray, mask: np.ndarray = None) -> list:
+        :param feature_extractor: Instance of FeatureExtractor.
+        :param feature_matcher: Instance of FeatureMatcher.
+        :param model_fitter: Instance of ModelFitter.
         """
-        Detects keypoints and computes descriptors using the specified detector on the given gray image.
+        self.feature_extractor = feature_extractor
+        self.feature_matcher = feature_matcher
+        self.model_fitter = model_fitter
 
-        Args:
-            gray_image (np.ndarray): The input gray image on which keypoints and descriptors are computed.
-            mask (np.ndarray, optional): An optional mask specifying where to detect keypoints. Defaults to None.
-
-        Returns:
-            list: A list containing the detected keypoints.
+    def process_frames(self, img1: np.ndarray, img2: np.ndarray, intrinsic_matrix: Optional[np.ndarray] = None) -> Optional[np.ndarray]:
         """
-        keypoints = self.model.detect(gray_image, mask)
-        keypoints, descriptors = self.aux_model.compute(gray_image, keypoints)
-        return keypoints, descriptors
+        Process two consecutive frames and estimate the motion.
 
-    def drawKeyPoints(self, image: np.ndarray, keypoints: list, outImage: np.ndarray = None, imageName: str = 'SIFT Keypoints' ) -> None:
+        :param img1: First image (previous frame).
+        :param img2: Second image (current frame).
+        :param intrinsic_matrix: Optional camera intrinsic matrix.
+        :return: Estimated transformation matrix (Fundamental or Essential matrix).
         """
-        Draws keypoints on the given image and displays the image with keypoints.
+        kp1, des1 = self.feature_extractor.extract_features(img1)
+        kp2, des2 = self.feature_extractor.extract_features(img2)
 
-        Args:
-            image (np.ndarray): The input image on which keypoints will be drawn.
-            keypoints (list): List of keypoints to be drawn on the image.
-            outImage (np.ndarray, optional): Output image where the keypoints will be drawn. If not provided, a new image will be created.
-            imagename (str, optional): Name of the window to display the image with keypoints. Default is 'SIFT Keypoints'.
-        
-        Returns:
-            None
-        """
-        # Draw keypoints on the image
-        image_with_keypoints = cv2.drawKeypoints(image, keypoints, outImage, color=(255,0,0))
+        matches = self.feature_matcher.match_features(des1, des2)
 
-        # Display the image with keypoints
-        cv2.imshow(imageName, image_with_keypoints)
-        cv2.waitKey(100)
+        pts1 = np.float32([kp1[m.queryIdx].pt for m in matches])
+        pts2 = np.float32([kp2[m.trainIdx].pt for m in matches])
 
-    def saveKeypoints(self, filename: str, img_keypoints: np.ndarray) -> None:
-        """
-        Save the image keypoints to a file.
-
-        Args:
-            filename (str): The name of the file to save the keypoints.
-            img_keypoints (np.ndarray): The image keypoints to be saved.
-
-        Returns:
-            None
-        """
-        cv2.imwrite(filename, img_keypoints)
-
-    def matchingKeypoints(self, descriptors1: np.ndarray, descriptors2: np.ndarray) -> list:
-        # Use BFMatcher to find the best matches
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        matches = bf.match(descriptors1, descriptors2)
-
-        # Sort the matches based on the distance (lower is better)
-        matches = sorted(matches, key=lambda x: x.distance)
-
-        return matches
-        
+        if intrinsic_matrix is not None:
+            E, inliers1, inliers2 = self.model_fitter.fit_essential_matrix(pts1, pts2, intrinsic_matrix, max_iter=1000)
+            if E is None:
+                print("No valid essential matrix found, skipping frame.")
+                return None
+            return E
+        else:
+            F, inliers1, inliers2 = self.model_fitter.fit_fundamental_matrix(pts1, pts2, max_iter=1000)
+            if F is None:
+                print("No valid fundamental matrix found, skipping frame.")
+                return None
+            return F
