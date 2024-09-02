@@ -7,12 +7,13 @@ from typing import Tuple, List, Optional, Union
 
 class FeatureExtractor:
     def __init__(
-        self, method: str = "AKAZE", parammeters: Union[dict, None] = None
+        self, method: str, parammeters: Union[dict, None] = None
     ) -> None:
         """
         Initialize the feature extractor.
 
-        :param method: Feature extraction method, either "AKAZE" or "FAST".
+        :param method: Feature extraction method, either "AKAZE", "FAST" or 
+        SIFT.
         :param parammeters: Parameters for the feature extraction method.
         """
         self.method = method
@@ -33,6 +34,9 @@ class FeatureExtractor:
             detector.setNonmaxSuppression(self.parammeters["suppression"])
             detector.setThreshold(self.parammeters["threshold"])
             descriptor = cv2.ORB_create()
+        elif self.method == "SIFT":
+            detector = cv2.SIFT_create()
+            descriptor = detector
         else:
             raise ValueError(f"Unsupported method: {self.method}")
         return detector, descriptor
@@ -52,14 +56,36 @@ class FeatureExtractor:
 
 
 class FeatureMatcher:
-    def __init__(self, norm_type=cv2.NORM_HAMMING, cross_check: bool = True):
+    def __init__(
+        self, method: str, parammeters: Union[dict, None]
+    ) -> None:
+        """
+        Initialize the feature matcher.
+        
+        :param method: Feature matching method, either "BF" or "FLANN".
+        :param parammeters: Parameters for the feature matching method.
+        """
+        self.method = method
+        self.parammeters = parammeters
+        self.matcher = self._initialize_matcher()
+        
+
+    def _initialize_matcher(self):
         """
         Initialize the feature matcher.
 
-        :param norm_type: Norm type for matching, default is NORM_HAMMING.
-        :param cross_check: If true, use cross-checking in matching.
+        :return: Matcher object.
         """
-        self.matcher = cv2.BFMatcher(norm_type, crossCheck=cross_check)
+        if self.method == "BF":
+            matcher = cv2.BFMatcher(self.parammeters["norm_type"], self.parammeters["crossCheck"])
+        elif self.method == "FLANN":
+            FLANN_INDEX_KDTREE = 1
+            index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = self.parammeters["trees"])
+            search_params = dict(checks=self.parammeters["checks"])
+            matcher = cv2.FlannBasedMatcher(index_params, search_params)
+        else:
+            raise ValueError(f"Unsupported method: {self.method}")
+        return matcher
 
     def match_features(
         self, des1: np.ndarray, des2: np.ndarray
@@ -199,7 +225,7 @@ class VisualOdometry:
 
         if display:
             # Visualize the matches
-            img_matches = cv2.drawMatches(img1, kp1, img2, kp2, matches, None)
+            img_matches = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
             cv2.imshow("Matches", img_matches)
             cv2.waitKey(1)
 
@@ -207,7 +233,11 @@ class VisualOdometry:
 
     # 3) Calcular a matriz essencial para o par de imagens Ik-1, Ik
     def compute_essential_matrix(
-        self, pts1: np.ndarray, pts2: np.ndarray, intrinsic_matrix: np.ndarray
+        self,
+        pts1: np.ndarray,
+        pts2: np.ndarray,
+        intrinsic_matrix: np.ndarray,
+        max_iter: int = 1000,
     ) -> Tuple[Optional[np.ndarray], np.ndarray, np.ndarray]:
         """
         Compute the essential matrix for a pair of images.
@@ -215,11 +245,12 @@ class VisualOdometry:
         :param pts1: The keypoints of the first image.
         :param pts2: The keypoints of the second image.
         :param intrinsic_matrix: The camera intrinsic matrix.
+        :param max_iter: Maximum number of iterations for RANSAC.
         :return: A tuple containing the essential matrix, inliers of the first
         image, and inliers of the second image.
         """
         return self.model_fitter.fit_essential_matrix(
-            pts1, pts2, intrinsic_matrix, max_iter=5000
+            pts1, pts2, intrinsic_matrix, max_iter=max_iter
         )
 
     # 4) Decompor a matriz essencial em Rk e tk e formar Tk
@@ -272,6 +303,7 @@ class VisualOdometry:
         img1: np.ndarray,
         img2: np.ndarray,
         intrinsic_matrix: Optional[np.ndarray] = None,
+        num_points: int = 8, epsolon: float = 0.5, prob: float = 0.99,
         display: bool = False,
     ) -> Optional[np.ndarray]:
         """
@@ -292,10 +324,15 @@ class VisualOdometry:
             img1, img2, display
         )
 
+        # Number of subsets (iterations) N that is necessary to guarantee that a correct solution
+        if len(matches) < num_points:
+            num_points = len(matches)
+        max_iter = int(np.log(1 - prob) / np.log(1 - (1 - epsolon) ** num_points))
+
         if intrinsic_matrix is not None:
             # 3) Calcular a matriz essencial para o par de imagens Ik-1, Ik
             E, inliers1, inliers2 = self.compute_essential_matrix(
-                pts1, pts2, intrinsic_matrix
+                pts1, pts2, intrinsic_matrix, max_iter
             )
             if E is None:
                 print("No valid essential matrix found, skipping frame.")

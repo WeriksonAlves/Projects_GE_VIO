@@ -19,7 +19,7 @@ class Camera:
         criteria: Tuple[int, int, float] = (
             cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER,
             30,
-            0.001,
+            0.001
         ),
     ):
         """
@@ -152,9 +152,10 @@ class Camera:
                         cv2.waitKey(100)
 
         cv2.destroyAllWindows()
+        print(f"\nTotal of images processed {count}")
         print(
-            f"\nTotal of images processed {count}\nNumber of images where \
-                corners were detected: {len(object_points)}"
+            f"Number of images where corners were detected: \
+                {len(object_points)}"
         )
 
         return object_points, image_points, obj_pattern
@@ -164,6 +165,7 @@ class Camera:
         object_points: List[np.ndarray],
         image_points: List[np.ndarray],
         image_size: Tuple[int, int],
+        use_extended_model: bool = False
     ) -> Tuple[
         bool, np.ndarray, np.ndarray, List[np.ndarray], List[np.ndarray]
     ]:
@@ -174,9 +176,15 @@ class Camera:
         :param object_points: List of arrays containing 3D object points.
         :param image_points: List of arrays containing 2D image points.
         :param image_size: Tuple containing the width and height of the image.
+        :param use_extended_model: Flag indicating whether to use the extended
         :return: Success flag, intrinsic matrix, distortion coefficients,
             rotation vectors, and translation vectors.
         """
+        if use_extended_model:
+            dist_coeffs = np.zeros((14, 1))  # Extended model
+        else:
+            dist_coeffs = None  # Default 5-coefficient model
+
         (
             ret,
             intrinsic_matrix,
@@ -184,7 +192,7 @@ class Camera:
             rotation_vecs,
             translation_vecs,
         ) = cv2.calibrateCamera(
-            object_points, image_points, image_size[::-1], None, None
+            object_points, image_points, image_size[::-1], None, dist_coeffs
         )
         return (
             ret,
@@ -202,7 +210,8 @@ class Camera:
         intrinsic_matrix: np.ndarray,
         distortion_coeffs: np.ndarray,
         image_points: List[np.ndarray],
-    ) -> None:
+        error_threshold: float = 0.5
+    ) -> bool:
         """
         Validates the calibration by calculating the mean reprojection error.
 
@@ -229,6 +238,17 @@ class Camera:
 
         mean_error = total_error / len(object_points)
         print(f"Mean reprojection error: {mean_error}")
+
+        # Check if the reprojection error is within the acceptable threshold
+        if mean_error > error_threshold:
+            print(
+                "Calibration error exceeds the acceptable threshold. \
+                Consider redoing the calibration."
+            )
+            return False
+        else:
+            print("Calibration is within acceptable error limits.")
+            return True
 
     def save_calibration(
         self,

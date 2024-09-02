@@ -17,8 +17,8 @@ from pyparrot.Bebop import Bebop
 
 # Initialize the main directory path.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-dataset_path = os.path.join(BASE_DIR, "datasets/calibration/board_B6_99")
-result_file = os.path.join(BASE_DIR, "results/calibration/B6_1.npz")
+dataset_path = os.path.join(BASE_DIR, "datasets/calibration/board_B6_1")
+result_file = os.path.join(BASE_DIR, "results/calibration/B6_99.npz")
 
 list_mode = [
     "camera_calibration",
@@ -29,13 +29,16 @@ list_mode = [
 mode = 1
 
 B6 = Bebop()
-camera = Camera(B6)
+camera = Camera(
+    uav=B6,
+    criteria=(cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 50, 0.001)
+)
 
 if list_mode[mode] == "camera_calibration":
-    if camera.capture_images(attempts=100, save=True, path=dataset_path):
-        print("Images captured successfully!")
-    else:
-        print("Failed to capture images.")
+    # if camera.capture_images(attempts=100, path=dataset_path):
+    #     print("Images captured successfully!")
+    # else:
+    #     print("No capture images.")
 
     image_files = sorted(
         glob.glob(os.path.join(os.path.join(BASE_DIR, dataset_path), "*.png"))
@@ -43,7 +46,7 @@ if list_mode[mode] == "camera_calibration":
     print(f"\n\nImages found: {len(image_files)}\n")
     if len(image_files) > 1:
         object_points, image_points, object_pattern = camera.process_images(
-            image_files=image_files, num_images=30, display=True
+            image_files=image_files, num_images=50, display=True
         )
         (
             _,
@@ -87,20 +90,24 @@ if list_mode[mode] == "camera_calibration":
 
 elif list_mode[mode] == "correspondences":
     image_files = sorted(
-        glob.glob(os.path.join(BASE_DIR, "datasets/matching/images/*.png"))
+        glob.glob(os.path.join(BASE_DIR, "datasets/matching/rotate_images/*.png"))
     )
     gray_image_files = [
         cv2.imread(image, cv2.IMREAD_GRAYSCALE) for image in image_files
     ]
 
     # Load images
-    img1 = gray_image_files[60]
-    img2 = gray_image_files[61]
+    img1 = gray_image_files[98]
+    img2 = gray_image_files[99]
 
     # Initialize components
-    parammeter = {"suppression": True, "threshold": 10}
-    feature_extractor = FeatureExtractor(method="FAST", parammeters=parammeter)
-    feature_matcher = FeatureMatcher()
+    param_fast = {"suppression": True, "threshold": 25}
+    feature_extractor = FeatureExtractor(method="FAST", parammeters=param_fast)
+    # feature_extractor = FeatureExtractor(method="AKAZE")
+    
+    param_bf = {"norm_type": cv2.NORM_HAMMING, "crossCheck": True}
+    param_flann = {"algorithm": 1, "trees": 5, "checks": 50}
+    feature_matcher = FeatureMatcher(method="BF", parammeters=param_bf)
     model_fitter = ModelFitter()
 
     # Create Visual Odometry instance
