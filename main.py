@@ -94,8 +94,8 @@ elif list_mode[mode] == "correspondences":
     ]
 
     # Load images
-    img1 = gray_image_files[15]
-    img2 = gray_image_files[17]
+    img1 = gray_image_files[60]
+    img2 = gray_image_files[61]
 
     # Initialize components
     parammeter = {"suppression": True, "threshold": 10}

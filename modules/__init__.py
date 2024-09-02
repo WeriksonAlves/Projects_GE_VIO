@@ -6,6 +6,4 @@ from .calibration.Camera import Camera
 
 from .feature.FeatureMatching import *
 
-from .MainRoutines import *
-
 # from .posture import Posture
