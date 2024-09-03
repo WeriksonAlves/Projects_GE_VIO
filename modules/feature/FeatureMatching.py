@@ -8,7 +8,8 @@ class FeatureExtractor:
         """
         Initialize the feature extractor.
 
-        :param method: Feature extraction method, either "AKAZE", "FAST" or "SIFT".
+        :param method: Feature extraction method, either "SIFT", "ORB", "AKAZE" 
+        or "FAST".
         :param parameters: Parameters for the feature extraction method.
         """
         self.method = method
@@ -21,7 +22,13 @@ class FeatureExtractor:
 
         :return: Detector and descriptor.
         """
-        if self.method == "AKAZE":
+        if self.method == "SIFT":
+            detector = cv2.SIFT_create()
+            descriptor = detector
+        elif self.method == "ORB":
+            detector = cv2.ORB_create()
+            descriptor = detector
+        elif self.method == "AKAZE":
             detector = cv2.AKAZE_create()
             descriptor = detector  # AKAZE combines detector and descriptor
         elif self.method == "FAST":
@@ -29,9 +36,6 @@ class FeatureExtractor:
             detector.setNonmaxSuppression(self.parameters.get("suppression", True))
             detector.setThreshold(self.parameters.get("threshold", 10))
             descriptor = cv2.ORB_create()
-        elif self.method == "SIFT":
-            detector = cv2.SIFT_create()
-            descriptor = detector
         else:
             raise ValueError(f"Unsupported method: {self.method}")
         return detector, descriptor
@@ -49,15 +53,19 @@ class FeatureExtractor:
 
 
 class FeatureMatcher:
-    def __init__(self, method: str, parameters: Optional[dict] = None) -> None:
+    def __init__(self, method: str, matches: str, parameters_method: Optional[dict] = None, parameters_matches: dict = {"k": 2}) -> None:
         """
         Initialize the feature matcher.
 
         :param method: Feature matching method, either "BF" or "FLANN".
-        :param parameters: Parameters for the feature matching method.
+        :param matches: Matching method, either "DEFAULT" or "KNN".
+        :param parameters_method: Parameters for the feature matching method.
+        :param parameters_matches: Parameters for the matching method.
         """
         self.method = method
-        self.parameters = parameters or {}
+        self.matches = matches
+        self.parameters1 = parameters_method or {}
+        self.parameters2 = parameters_matches or {}
         self.matcher = self._initialize_matcher()
 
     def _initialize_matcher(self) -> cv2.DescriptorMatcher:
@@ -67,16 +75,30 @@ class FeatureMatcher:
         :return: Matcher object.
         """
         if self.method == "BF":
-            return cv2.BFMatcher(self.parameters.get("norm_type", cv2.NORM_HAMMING),
-                                self.parameters.get("crossCheck", False))
+            return cv2.BFMatcher(self.parameters1.get("norm_type", cv2.NORM_HAMMING),
+                                self.parameters1.get("crossCheck", True))
         elif self.method == "FLANN":
-            index_params = dict(algorithm=self.parameters.get("algorithm", 1),
-                                trees=self.parameters.get("trees", 5))
-            search_params = dict(checks=self.parameters.get("checks", 50))
-            return cv2.FlannBasedMatcher(index_params, search_params)
+            return cv2.FlannBasedMatcher(self.parameters1["index_params"],
+                                        self.parameters1["search_params"])
         else:
             raise ValueError(f"Unsupported method: {self.method}")
 
+    def _change_type(self, des1: np.ndarray, des2: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Change the type of the descriptors to float32 if needed for FLANN matcher.
+
+        :param des1: Descriptors from the first image.
+        :param des2: Descriptors from the second image.
+        :return: Descriptors with the correct type.
+        """
+        if self.method == "FLANN":
+            des1 = des1.astype(np.float32)
+            des2 = des2.astype(np.float32)
+        elif self.method == "BF":
+            des1 = des1.astype(np.uint8)
+            des2 = des2.astype(np.uint8)
+        return des1, des2
+    
     def match_features(self, des1: np.ndarray, des2: np.ndarray) -> List[cv2.DMatch]:
         """
         Match descriptors between two sets.
@@ -85,13 +107,13 @@ class FeatureMatcher:
         :param des2: Descriptors from the second image.
         :return: List of matches.
         """
-        if self.method == "BF":
+        des1, des2 = self._change_type(des1, des2)
+
+        if self.matches == "DEFAULT":
             matches = self.matcher.match(des1, des2)
             return sorted(matches, key=lambda x: x.distance)
-        elif self.method == "FLANN":
-            des1 = des1.astype(np.float32)
-            des2 = des2.astype(np.float32)
-            matches = self.matcher.knnMatch(des1, des2, k=self.parameters.get("k", 2))
+        elif self.matches == "KNN":
+            matches = self.matcher.knnMatch(des1, des2, k=self.parameters2.get("k", 2))
             return self._filter_matches(matches)
         else:
             raise ValueError(f"Unsupported method: {self.method}")
@@ -103,6 +125,13 @@ class FeatureMatcher:
         :param matches: Raw matches from knnMatch.
         :return: Filtered list of matches.
         """
+        # matchesMask = [[0, 0] for i in range(len(matches))]
+        # for i, (m, n) in enumerate(matches):
+        #     if m.distance < 0.7 * n.distance:
+        #         matchesMask[i] = [1, 0]
+        
+        
+        
         good_matches = []
         for m, n in matches:
             if m.distance < 0.7 * n.distance:
@@ -225,7 +254,7 @@ class VisualOdometry:
         :param image_path: The image file path.
         :return: The image as a NumPy array.
         """
-        return cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+        return cv2.resize(cv2.imread(image_path, cv2.IMREAD_GRAYSCALE), (640, 480))
 
     def extract_and_match_features(
         self, 
