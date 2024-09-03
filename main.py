@@ -18,7 +18,7 @@ from pyparrot.Bebop import Bebop
 # Initialize the main directory path.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 dataset_path = os.path.join(BASE_DIR, "datasets/calibration/board_B6_1")
-result_file = os.path.join(BASE_DIR, "results/calibration/B6_99.npz")
+result_file = os.path.join(BASE_DIR, "results/calibration/B6_1.npz")
 
 list_mode = [
     "camera_calibration",
@@ -90,24 +90,24 @@ if list_mode[mode] == "camera_calibration":
 
 elif list_mode[mode] == "correspondences":
     image_files = sorted(
-        glob.glob(os.path.join(BASE_DIR, "datasets/matching/rotate_images/*.png"))
+        glob.glob(os.path.join(BASE_DIR, "datasets/matching/images/*.png"))
     )
     gray_image_files = [
         cv2.imread(image, cv2.IMREAD_GRAYSCALE) for image in image_files
     ]
 
     # Load images
-    img1 = gray_image_files[98]
-    img2 = gray_image_files[99]
+    img1 = image_files[49]
+    img2 = image_files[50]
 
     # Initialize components
-    param_fast = {"suppression": True, "threshold": 25}
-    feature_extractor = FeatureExtractor(method="FAST", parammeters=param_fast)
-    # feature_extractor = FeatureExtractor(method="AKAZE")
+    feature_extractor = FeatureExtractor("FAST", {"suppression": True, "threshold": 25})
+    # feature_extractor = FeatureExtractor("AKAZE")
+    # feature_extractor = FeatureExtractor("SIFT")
     
-    param_bf = {"norm_type": cv2.NORM_HAMMING, "crossCheck": True}
-    param_flann = {"algorithm": 1, "trees": 5, "checks": 50}
-    feature_matcher = FeatureMatcher(method="BF", parammeters=param_bf)
+    feature_matcher = FeatureMatcher("BF", {"norm_type": cv2.NORM_HAMMING, "crossCheck": True})
+    # feature_matcher = FeatureMatcher("FLANN", {"algorithm": 1, "trees": 5, "checks": 50, "k":2})
+    
     model_fitter = ModelFitter()
 
     # Create Visual Odometry instance
@@ -116,7 +116,12 @@ elif list_mode[mode] == "correspondences":
     intrinsic_matrix, _, _, _ = camera.load_calibration(result_file)
 
     # Process frames and estimate transformation matrix
-    C = vo.process_frames(img1, img2, intrinsic_matrix, display=True)
+    C = vo.process_frames(
+        img1=img1, 
+        img2=img2, 
+        intrinsic_matrix=intrinsic_matrix,
+        display=True
+    )
 
     print(f"Estimated Transformation Matrix: \n{C}")
 
