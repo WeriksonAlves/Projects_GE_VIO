@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from typing import Tuple, List, Optional, Union
+from typing import Tuple, List, Optional, Union, Sequence
 
 
 class FeatureExtractor:
@@ -113,44 +113,40 @@ class FeatureMatcher:
             matches = self.matcher.match(des1, des2)
             return sorted(matches, key=lambda x: x.distance)
         elif self.matches == "KNN":
-            matches = self.matcher.knnMatch(des1, des2, k=self.parameters2.get("k", 2))
-            return self._filter_matches(matches)
+            return self.matcher.knnMatch(des1, des2, k=self.parameters2.get("k", 2))
         else:
             raise ValueError(f"Unsupported method: {self.method}")
 
-    def _filter_matches(self, matches: List[List[cv2.DMatch]]) -> List[cv2.DMatch]:
+    def filter_matches(self, matches: Sequence[Sequence[cv2.DMatch]], k: float = 0.7) -> Tuple[List[cv2.DMatch], List[List[int]]]:
         """
-        Filter matches using the ratio test.
-
-        :param matches: Raw matches from knnMatch.
-        :return: Filtered list of matches.
+        Filter matches based on the Lowe's ratio test.
+        
+        :param matches: List of matches.
+        :param k: Threshold for the ratio test.
+        :return: List of good matches and mask.
         """
-        # matchesMask = [[0, 0] for i in range(len(matches))]
-        # for i, (m, n) in enumerate(matches):
-        #     if m.distance < 0.7 * n.distance:
-        #         matchesMask[i] = [1, 0]
-        
-        
-        
+        matchesMask = [[0, 0] for i in range(len(matches))]
         good_matches = []
-        for m, n in matches:
-            if m.distance < 0.7 * n.distance:
+        for i, (m, n) in enumerate(matches):
+            if m.distance < k * n.distance:
+                matchesMask[i] = [1, 0]
                 good_matches.append(m)
-        return good_matches
+        return good_matches, matchesMask
 
     def extract_keypoints(self, kp1: List[cv2.KeyPoint], kp2: List[cv2.KeyPoint],
-            matches: List[cv2.DMatch]) -> Tuple[np.ndarray, np.ndarray, List[cv2.DMatch]]:
+            matches: List[cv2.DMatch]) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Extract keypoints and create DMatch objects.
+        Extract the keypoints from the matches.
 
         :param kp1: Keypoints from the first image.
         :param kp2: Keypoints from the second image.
         :param matches: List of matches.
-        :return: Keypoint coordinates and good matches.
+        :return: Keypoints from the first image, keypoints from the second image.
         """
+
         pts1 = np.float32([kp1[m.queryIdx].pt for m in matches])
         pts2 = np.float32([kp2[m.trainIdx].pt for m in matches])
-        return pts1, pts2, matches
+        return pts1, pts2
 
 
 class ModelFitter:
@@ -274,10 +270,13 @@ class VisualOdometry:
         kp2, des2 = self.feature_extractor.extract_features(img2)
 
         matches = self.feature_matcher.match_features(des1, des2)
-        pts1, pts2, good_matches = self.feature_matcher.extract_keypoints(kp1, kp2, matches)
+        good_matches, matchesMask = self.feature_matcher.filter_matches(matches)
+        pts1, pts2 = self.feature_matcher.extract_keypoints(kp1, kp2, good_matches)
+
+        
 
         if display:
-            self._display_matches(img1, kp1, img2, kp2, good_matches)
+            self._display_matches(img1, kp1, img2, kp2, matches, good_matches, matchesMask)
 
         return pts1, pts2, good_matches
     
@@ -287,7 +286,9 @@ class VisualOdometry:
         kp1: List[cv2.KeyPoint], 
         img2: np.ndarray, 
         kp2: List[cv2.KeyPoint], 
-        matches: List[cv2.DMatch]
+        matches: List[cv2.DMatch], 
+        good_matches: List[cv2.DMatch],
+        matchesMask: List[List[int]]
     ) -> None:
         """
         Display the feature matches.
@@ -297,10 +298,34 @@ class VisualOdometry:
         :param img2: The second image.
         :param kp2: Keypoints in the second image.
         :param matches: Matches between the keypoints.
+        :param matchesMask: Mask for the matches.
         """
-        img_matches = cv2.drawMatches(img1, kp1, img2, kp2, matches, None, flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
-        cv2.imshow("Matches", img_matches)
+        img_matches = cv2.drawMatchesKnn(
+            img1=img1,
+            keypoints1=kp1, 
+            img2=img2, 
+            keypoints2=kp2, 
+            matches1to2=matches, 
+            outImg=None, 
+            matchColor=(0, 255, 0),
+            singlePointColor=(0, 0, 255),
+            matchesMask=matchesMask,
+            flags=cv2.DrawMatchesFlags_DEFAULT)
+        cv2.imshow("Matches KNN", img_matches)
         cv2.waitKey(100)
+
+        # img_matches = cv2.drawMatches(
+        #     img1=img1,
+        #     keypoints1=kp1, 
+        #     img2=img2, 
+        #     keypoints2=kp2, 
+        #     matches1to2=good_matches, 
+        #     outImg=None, 
+        #     matchColor=(0, 255, 0),
+        #     singlePointColor=(0, 0, 255),
+        #     flags=cv2.DrawMatchesFlags_DEFAULT)
+        # cv2.imshow("Matches", img_matches)
+        # cv2.waitKey(100)
 
     def decompose_essential_matrix(
         self, 

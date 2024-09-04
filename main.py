@@ -103,39 +103,35 @@ elif list_mode[mode] == "correspondences":
     # Initialize components
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
-    
-    # FLANN_INDEX_LSH = 6
-    # index_params = dict(algorithm=FLANN_INDEX_LSH, table_number=12, key_size=20, multi_probe_level=2)
-
     search_params = dict(checks=50)
-    feature_matcher = FeatureMatcher("FLANN", "DEFAULT", {"index_params": index_params, "search_params": search_params}, {"k": 2})
+
+    
     model_fitter = ModelFitter()
 
     
     feature_extractor = FeatureExtractor("SIFT")
+    feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
     vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
     gray_img1 = vo.read_frame(img1)
     gray_img2 = vo.read_frame(img2)
     vo.extract_and_match_features(gray_img1, gray_img2, True)
-
-    feature_extractor = FeatureExtractor("ORB")
-    vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
-    gray_img1 = vo.read_frame(img1)
-    gray_img2 = vo.read_frame(img2)
-    vo.extract_and_match_features(gray_img1, gray_img2, True)
+    cv2.waitKey(100)
 
     feature_extractor = FeatureExtractor("AKAZE")
+    feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
     vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
     gray_img1 = vo.read_frame(img1)
     gray_img2 = vo.read_frame(img2)
     vo.extract_and_match_features(gray_img1, gray_img2, True)
+    cv2.waitKey(100)
 
-    feature_extractor = FeatureExtractor("FAST", {"suppression": True, "threshold": 125})
+    feature_extractor = FeatureExtractor("FAST", {"suppression": True, "threshold": 10})
+    feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
     vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
     gray_img1 = vo.read_frame(img1)
     gray_img2 = vo.read_frame(img2)
     vo.extract_and_match_features(gray_img1, gray_img2, True)
-    
+    cv2.waitKey(100)
 
     
     
