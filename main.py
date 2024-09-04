@@ -4,15 +4,14 @@ import cv2
 
 import numpy as np
 
-# from modules import *
 from modules.calibration.Camera import Camera
 from modules.auxiliary.DisplayPostureCamera import DisplayPostureCamera
-from modules.feature.FeatureMatching import (
-    FeatureMatcher,
-    FeatureExtractor,
-    ModelFitter,
-    VisualOdometry,
-)
+
+from modules.feature.FeatureExtractor import *
+from modules.feature.FeatureMatcher import *
+from modules.feature.ModelFitter import ModelFitter
+from modules.feature.VisualOdometry import VisualOdometry
+
 from pyparrot.Bebop import Bebop
 
 # Initialize the main directory path.
@@ -22,7 +21,6 @@ result_file = os.path.join(BASE_DIR, "results/calibration/B6_1.npz")
 
 list_mode = [
     "camera_calibration",
-    "correspondences",
     "feature_matching",
     "pose_estimation",
 ]
@@ -88,7 +86,7 @@ if list_mode[mode] == "camera_calibration":
         )
 
 
-elif list_mode[mode] == "correspondences":
+elif list_mode[mode] == "feature_matching":
     image_files = sorted(
         glob.glob(os.path.join(BASE_DIR, "datasets/matching/images/*.png"))
     )
@@ -104,42 +102,45 @@ elif list_mode[mode] == "correspondences":
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
+    parammeters = {"index_params": index_params, "search_params": search_params}
 
     
     model_fitter = ModelFitter()
 
     
-    feature_extractor = FeatureExtractor("SIFT")
-    feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
+    # feature_extractor = FeatureExtractor("SIFT")
+    # feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
+    # vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
+    # gray_img1 = vo.read_frame(img1)
+    # gray_img2 = vo.read_frame(img2)
+    # vo.extract_and_match_features(gray_img1, gray_img2, True)
+    # cv2.waitKey(100)
+
+    feature_extractor = SIFT()
+    feature_matcher = FLANN(parammeters)
+    model_fitter = ModelFitter()
     vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
     gray_img1 = vo.read_frame(img1)
     gray_img2 = vo.read_frame(img2)
     vo.extract_and_match_features(gray_img1, gray_img2, True)
     cv2.waitKey(100)
 
-    feature_extractor = FeatureExtractor("AKAZE")
-    feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
-    vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
-    gray_img1 = vo.read_frame(img1)
-    gray_img2 = vo.read_frame(img2)
-    vo.extract_and_match_features(gray_img1, gray_img2, True)
-    cv2.waitKey(100)
+    # feature_extractor = FeatureExtractor("FAST", {"suppression": True, "threshold": 10})
+    # feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
+    # vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
+    # gray_img1 = vo.read_frame(img1)
+    # gray_img2 = vo.read_frame(img2)
+    # vo.extract_and_match_features(gray_img1, gray_img2, True)
+    # cv2.waitKey(100)
 
-    feature_extractor = FeatureExtractor("FAST", {"suppression": True, "threshold": 10})
-    feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
-    vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
-    gray_img1 = vo.read_frame(img1)
-    gray_img2 = vo.read_frame(img2)
-    vo.extract_and_match_features(gray_img1, gray_img2, True)
-    cv2.waitKey(100)
-
+    # Press 'q' to close the window
+    if cv2.waitKey(0) and 0xFF == ord("q"):
+        cv2.destroyAllWindows()
+        cv2.waitKey(100)
     
     
     
-    
-    
-    
-
+elif list_mode[mode] == "pose_estimation":
     # intrinsic_matrix, _, _, _ = camera.load_calibration(result_file)
 
     # # Process frames and estimate transformation matrix
@@ -152,7 +153,5 @@ elif list_mode[mode] == "correspondences":
 
     # print(f"Estimated Transformation Matrix: \n{C}")
 
-    # Press 'q' to close the window
-    if cv2.waitKey(0) and 0xFF == ord("q"):
-        cv2.destroyAllWindows()
-        cv2.waitKey(100)
+    pass
+    

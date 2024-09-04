@@ -1,3 +1,7 @@
-# This file is used to import all the classes in the feature module
+from .interfaces import InterfaceFeatureExtractor, InterfaceFeatureMatcher, InterfaceModelFitter
 
-from .FeatureMatching import *
+from .VisualOdometry import VisualOdometry
+from .FeatureExtractor import *
+from .FeatureMatcher import *
+from .ModelFitter import *
+

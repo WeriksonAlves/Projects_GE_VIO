@@ -4,6 +4,10 @@ from .auxiliary.DisplayPostureCamera import DisplayPostureCamera
 
 from .calibration.Camera import Camera
 
-from .feature.FeatureMatching import *
+
+from .feature.VisualOdometry import VisualOdometry
+from .feature.FeatureExtractor import *
+from .feature.FeatureMatcher import *
+from .feature.ModelFitter import *
 
 # from .posture import Posture
