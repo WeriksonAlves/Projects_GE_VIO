@@ -5,9 +5,11 @@ from .auxiliary.DisplayPostureCamera import DisplayPostureCamera
 from .calibration.Camera import Camera
 
 
-from .feature.VisualOdometry import VisualOdometry
+from .pose_estimation.VisualOdometry import VisualOdometry
 from .feature.FeatureExtractor import *
 from .feature.FeatureMatcher import *
 from .feature.ModelFitter import *
 
-# from .posture import Posture
+from .mainRoutines import run_camera_calibration
+from .mainRoutines import run_feature_matching
+from .mainRoutines import run_pose_estimation

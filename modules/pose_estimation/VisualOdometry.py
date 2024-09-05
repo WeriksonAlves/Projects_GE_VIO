@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from typing import Tuple, List, Optional, Union, Sequence
 
-from .interfaces import InterfaceFeatureExtractor, InterfaceFeatureMatcher, InterfaceModelFitter
+from ..feature.interfaces import InterfaceFeatureExtractor, InterfaceFeatureMatcher, InterfaceModelFitter
 
 class VisualOdometry:
     def __init__(
