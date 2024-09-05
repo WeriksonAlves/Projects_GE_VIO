@@ -6,6 +6,10 @@ import numpy as np
 
 class InterfaceFeatureExtractor(ABC):
     @abstractmethod
+    def __init__(self, parameters: dict) -> None:
+        pass
+
+    @abstractmethod
     def _define_parameters(self, parameters: dict) -> None:
         pass
 
@@ -20,13 +24,19 @@ class InterfaceFeatureExtractor(ABC):
 
 class InterfaceFeatureMatcher(ABC):
     @abstractmethod
-    def match_features(
-        self,
-        keypoints1: List[cv2.KeyPoint],
-        descriptors1: np.ndarray,
-        keypoints2: List[cv2.KeyPoint],
-        descriptors2: np.ndarray,
-    ) -> List[cv2.DMatch]:
+    def __init__(self, parameters: dict) -> None:
+        pass
+
+    @abstractmethod
+    def _define_parameters(self) -> None:
+        pass
+
+    @abstractmethod
+    def _initialize_matcher(self):
+        pass
+    
+    @abstractmethod
+    def match_features(*args, **kwargs):
         pass
 
     @abstractmethod

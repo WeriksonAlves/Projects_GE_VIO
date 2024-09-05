@@ -1,7 +1,13 @@
 import cv2
+import torch
+
+import kornia as K
+import kornia.feature as KF
 import numpy as np
-from typing import Tuple, List, Optional
+
 from .interfaces import InterfaceFeatureExtractor
+from kornia.feature import LoFTR
+from typing import List, Tuple, Optional
 
 
 class SIFT(InterfaceFeatureExtractor):
@@ -297,5 +303,41 @@ class KAZE(InterfaceFeatureExtractor):
         return keypoints, descriptors
 
 
+class LoFTRExtractor(InterfaceFeatureExtractor):
+    def __init__(self, parameters: dict = None) -> None:
+        """
+        Inicializa o matcher LoFTR.
+        """
+        self.parameters = parameters or {}
+        self._define_parameters()
+        self.matcher = self._initialize_extractor()
 
+    def _define_parameters(self) -> None:
+        """
+        Define os parâmetros para o matcher LoFTR.
+        """
+        self.model_type = self.parameters.get("model_type", "indoor")  # 'indoor' ou 'outdoor'
+        self.gpu = self.parameters.get("gpu", False)
 
+    def _initialize_extractor(self) -> LoFTR:
+        """
+        Inicializa o matcher LoFTR.
+        """
+        matcher = LoFTR(pretrained=self.model_type)
+        if self.gpu: matcher = matcher.to(torch.device("cuda"))
+        return matcher
+
+    def extract_features(self, img1: np.ndarray, img2: np.ndarray) -> dict:
+        img1_gray = K.color.rgb_to_grayscale(img1)
+        img2_gray = K.color.rgb_to_grayscale(img2)
+
+        input_dict = {
+            "image0": img1_gray,
+            "image1": img2_gray
+        }
+        if self.gpu: input_dict = {k: v.to(torch.device("cuda")) for k, v in input_dict.items()}
+
+        with torch.inference_mode():
+            correspondences = self.matcher(input_dict)
+        
+        return correspondences

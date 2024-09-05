@@ -87,53 +87,50 @@ if list_mode[mode] == "camera_calibration":
 
 
 elif list_mode[mode] == "feature_matching":
-    image_files = sorted(
-        glob.glob(os.path.join(BASE_DIR, "datasets/matching/images/*.png"))
-    )
-    gray_image_files = [
-        cv2.imread(image, cv2.IMREAD_GRAYSCALE) for image in image_files
-    ]
+    image_files = sorted(glob.glob(os.path.join(BASE_DIR, "datasets/matching/images/*.png")))
+    gray_image_files = [cv2.imread(image, cv2.IMREAD_GRAYSCALE) for image in image_files]
 
     # Load images
-    img1 = "/home/ubuntu/Documentos/Werikson/GitHub/env_GE-VIO/Projects_GE_VIO/references/notre_dame_1.jpg"#image_files[49]
-    img2 = "/home/ubuntu/Documentos/Werikson/GitHub/env_GE-VIO/Projects_GE_VIO/references/notre_dame_2.jpg"#image_files[50]
+    img1 = image_files[4]
+    img2 = image_files[5]
 
-    # Initialize components
+    #%% Initialize components: Classic method 
+
+    # Feature extractor
+    feature_extractor = FAST()
+
+    # Feature matcher
     FLANN_INDEX_KDTREE = 1
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
     parammeters = {"index_params": index_params, "search_params": search_params}
-
+    feature_matcher = FlannMatcher(parammeters)
     
+    # Model fitter
     model_fitter = ModelFitter()
 
-    
-    # feature_extractor = FeatureExtractor("SIFT")
-    # feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
-    # vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
-    # gray_img1 = vo.read_frame(img1)
-    # gray_img2 = vo.read_frame(img2)
-    # vo.extract_and_match_features(gray_img1, gray_img2, True)
-    # cv2.waitKey(100)
-
-    feature_extractor = SIFT()
-    feature_matcher = FLANN(parammeters)
-    model_fitter = ModelFitter()
+    # Visual odometry
     vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
     gray_img1 = vo.read_frame(img1)
     gray_img2 = vo.read_frame(img2)
     vo.extract_and_match_features(gray_img1, gray_img2, True)
     cv2.waitKey(100)
 
-    # feature_extractor = FeatureExtractor("FAST", {"suppression": True, "threshold": 10})
-    # feature_matcher = FeatureMatcher("FLANN", "KNN", {"index_params": index_params, "search_params": search_params}, {"k": 2})
-    # vo = VisualOdometry(feature_extractor, feature_matcher, model_fitter)
-    # gray_img1 = vo.read_frame(img1)
-    # gray_img2 = vo.read_frame(img2)
-    # vo.extract_and_match_features(gray_img1, gray_img2, True)
-    # cv2.waitKey(100)
+    #%% Initialize components: LoFTR method
 
-    # Press 'q' to close the window
+    # Load images
+    img1 = K.io.load_image(image_files[4], K.io.ImageLoadType.RGB32)[None, ...]
+    img2 = K.io.load_image(image_files[5], K.io.ImageLoadType.RGB32)[None, ...]
+
+    feature_matcher = LoFTRMatcher(parameters={"pretrained": "indoor"})
+
+    mkpts0, mkpts1, inliers = feature_matcher.match_features(img1, img2)
+    feature_matcher.show_matches(img1, img2, mkpts0, mkpts1, inliers)
+
+    
+    #%% Quit program
+
+    #Press 'q' to close the window
     if cv2.waitKey(0) and 0xFF == ord("q"):
         cv2.destroyAllWindows()
         cv2.waitKey(100)
