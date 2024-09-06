@@ -133,38 +133,27 @@ class FlannMatcher(InterfaceFeatureMatcher):
 
 
 class LoFTRMatcher(InterfaceFeatureMatcher):
-    def __init__(self, parameters: dict = None) -> None:
+    def __init__(self, feature_extractor: LoFTRExtractor) -> None:
         """
         Initialize the feature matcher.
 
         :param extractor: LoFTR feature extractor.
         """
-        self.parameters = parameters or {}
-        self.extractor = LoFTRExtractor(self.parameters)
-        self._initialize_matcher()
+        self.feature_extractor = feature_extractor
+        self._define_parameters()
+        self.matcher = self._initialize_matcher()
 
     def _define_parameters(self) -> None:
         pass
 
     def _initialize_matcher(self) -> None:
-        pass
+        return self.feature_extractor
 
-    def match_features(self, img1: np.ndarray, img2: np.ndarray) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    def match_features(self, correspondences):
         """
         Match features between two images.
-
-        :param img1: The first image.
-        :param img2: The second image.
-        :return: The keypoints from both images and the inliers.
         """
-        correspondences = self.extractor.extract_features(img1, img2)
-        mkpts0 = correspondences["keypoints0"].cpu().numpy()
-        mkpts1 = correspondences["keypoints1"].cpu().numpy()
-
-        Fm, inliers = cv2.findFundamentalMat(mkpts0, mkpts1, cv2.USAC_MAGSAC, 0.5, 0.999, 100000)
-        inliers = inliers > 0
-
-        return mkpts0, mkpts1, inliers
+        return correspondences, None
 
     def show_matches(self, img1: np.ndarray, img2: np.ndarray, mkpts0: np.ndarray, mkpts1: np.ndarray, inliers: np.ndarray) -> None:
         """

@@ -1,1 +1,2 @@
-from ..pose_estimation.VisualOdometry import VisualOdometry
+from .ModelFitter import ModelFitter
+from .VisualOdometry import VisualOdometry

@@ -2,5 +2,5 @@ from .interfaces import InterfaceFeatureExtractor, InterfaceFeatureMatcher, Inte
 
 from .FeatureExtractor import *
 from .FeatureMatcher import *
-from .ModelFitter import *
+from ..pose_estimation.ModelFitter import *
 

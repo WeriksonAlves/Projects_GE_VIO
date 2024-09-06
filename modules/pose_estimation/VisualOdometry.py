@@ -3,16 +3,16 @@ import numpy as np
 from typing import Tuple, List, Optional, Union, Sequence
 
 from ..feature.interfaces import InterfaceFeatureExtractor, InterfaceFeatureMatcher, InterfaceModelFitter
+from .interfaces import PoseEstimator
 
-class VisualOdometry:
+
+class VisualOdometry(PoseEstimator):
     def __init__(
         self,
         feature_extractor: InterfaceFeatureExtractor,
         feature_matcher: InterfaceFeatureMatcher,
         model_fitter: InterfaceModelFitter,
-        num_points: int = 8,
-        epsilon: float = 0.5,
-        prob: float = 0.99,
+        params: Optional[dict] = None
     ) -> None:
         """
         Initialize the Visual Odometry pipeline.
@@ -20,129 +20,136 @@ class VisualOdometry:
         :param feature_extractor: Feature extractor instance.
         :param feature_matcher: Feature matcher instance.
         :param model_fitter: Model fitter instance.
-        :param num_points: Number of points required for RANSAC.
-        :param epsilon: RANSAC parameter for outlier rejection.
-        :param prob: RANSAC parameter for probability.
+        :param params: Optional parameters for the pipeline.
         """
         self.feature_extractor = feature_extractor
         self.feature_matcher = feature_matcher
         self.model_fitter = model_fitter
-        self.num_points = num_points
-        self.epsilon = epsilon
-        self.prob = prob
+        self.params = params or {}
 
-    def read_frame(
-        self, 
-        image_path: str
-    ) -> np.ndarray:
+        self._define_parameters()
+    
+    def _define_parameters(self) -> None:
         """
-        Read an image from the file path.
+        Define the parameters for the Visual Odometry pipeline.
+        """
+        self.num_points = self.params.get("num_points", 8)
+        self.epsilon = self.params.get("epsilon", 0.5)
+        self.prob = self.params.get("prob", 0.99)
+        self.display = self.params.get("display", False)
 
-        :param image_path: The image file path.
-        :return: The image as a NumPy array.
-        """
-        return cv2.resize(cv2.imread(image_path, cv2.IMREAD_GRAYSCALE), (640, 480))
+    def _initialize_pose_estimator(self, *args, **kwargs):
+        pass
 
     def extract_and_match_features(
-        self, 
-        img1: np.ndarray, 
-        img2: np.ndarray, 
-        display: bool = False
-    ) -> Tuple[np.ndarray, np.ndarray, List[cv2.DMatch]]:
+        self, img1_tensor: np.ndarray, img2_tensor: np.ndarray
+    ):
         """
         Extract and match features between two images.
-
-        :param img1: The first image.
-        :param img2: The second image.
-        :param display: Whether to display the matches.
-        :return: A tuple containing the keypoints, descriptors, and matches.
-        """
-        kp1, des1 = self.feature_extractor.extract_features(img1)
-        kp2, des2 = self.feature_extractor.extract_features(img2)
-
-        matches, matchesMask = self.feature_matcher.match_features(des1, des2)
-        if display: self.feature_matcher.show_matches(img1, kp1, img2, kp2, matches, matchesMask)
-
-        # good_matches, matchesMask = self.feature_matcher.filter_matches(matches)
-        # pts1, pts2 = self.feature_matcher.extract_keypoints(kp1, kp2, good_matches)
-
         
-
+        :param img1_tensor: The first image tensor.
+        :param img2_tensor: The second image tensor.
         
-
-        return None#pts1, pts2, good_matches
-    
-    def _display_matches(
-        self, 
-        img1: np.ndarray, 
-        kp1: List[cv2.KeyPoint], 
-        img2: np.ndarray, 
-        kp2: List[cv2.KeyPoint], 
-        matches: List[cv2.DMatch], 
-        good_matches: List[cv2.DMatch],
-        matchesMask: List[List[int]]
-    ) -> None:
         """
-        Display the feature matches.
+        correspondences, _ = self.feature_matcher.match_features(
+            self.feature_extractor.extract_features(img1_tensor, img2_tensor)
+        )
+        return correspondences
 
-        :param img1: The first image.
-        :param kp1: Keypoints in the first image.
-        :param img2: The second image.
-        :param kp2: Keypoints in the second image.
-        :param matches: Matches between the keypoints.
-        :param matchesMask: Mask for the matches.
+    def extract_keypoints(self, correspondences):
         """
-        img_matches = cv2.drawMatchesKnn(
-            img1=img1,
-            keypoints1=kp1, 
-            img2=img2, 
-            keypoints2=kp2, 
-            matches1to2=matches, 
-            outImg=None, 
-            matchColor=(0, 255, 0),
-            singlePointColor=(0, 0, 255),
-            matchesMask=matchesMask,
-            flags=cv2.DrawMatchesFlags_DEFAULT)
-        cv2.imshow("Matches KNN", img_matches)
-        cv2.waitKey(100)
+        Extract keypoints from the correspondences.
 
-        # img_matches = cv2.drawMatches(
-        #     img1=img1,
-        #     keypoints1=kp1, 
-        #     img2=img2, 
-        #     keypoints2=kp2, 
-        #     matches1to2=good_matches, 
-        #     outImg=None, 
-        #     matchColor=(0, 255, 0),
-        #     singlePointColor=(0, 0, 255),
-        #     flags=cv2.DrawMatchesFlags_DEFAULT)
-        # cv2.imshow("Matches", img_matches)
-        # cv2.waitKey(100)
-
-    def decompose_essential_matrix(
-        self, 
-        E: np.ndarray, 
-        pts1: np.ndarray, 
-        pts2: np.ndarray, 
-        intrinsic_matrix: np.ndarray
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        :param correspondences: The feature correspondences.
+        :return: The keypoints from the correspondences
         """
-        Decompose the essential matrix into rotation and translation matrices.
+        mkpts0 = correspondences["keypoints0"].cpu().numpy()
+        mkpts1 = correspondences["keypoints1"].cpu().numpy()
+        return mkpts0, mkpts1
 
-        :param E: The essential matrix.
-        :param pts1: The keypoints of the first image.
-        :param pts2: The keypoints of the second image.
+    def compute_num_iterations(self, prob, epsilon, num_points, matches):
+        """
+        Compute the number of iterations for the RANSAC algorithm.
+
+        :param prob: The probability of success.
+        :param epsilon: The outlier ratio.
+        :param num_points: The number of points.
+        :param matches: The number of matches.
+        :return: The number of iterations.
+        """
+        if len(matches) < num_points: 
+            num_points = len(matches)
+        max_iter = int(np.log(1 - prob) / np.log(1 - (1 - epsilon) ** num_points))
+        return max_iter
+
+    def find_essential_matrix(self, mkpts0, mkpts1, intrinsic_matrix, max_iter):
+        """
+        Find the essential matrix between two images.
+        
+        :param mkpts0: The keypoints of the first image.
+        :param mkpts1: The keypoints of the second image.
         :param intrinsic_matrix: The camera intrinsic matrix.
-        :return: A tuple containing the rotation matrix and translation matrix.
+        :param max_iter: The maximum number of iterations.
+        :return: The essential matrix and the inliers.
         """
-        _, R, t, _ = cv2.recoverPose(E, pts1, pts2, intrinsic_matrix)
+        Em, inliers = cv2.findEssentialMat(
+            points1=mkpts0,
+            points2=mkpts1,
+            cameraMatrix=intrinsic_matrix,
+            method=cv2.RANSAC,
+            prob=self.prob,
+            threshold=self.epsilon,
+            maxIters=100000
+        )
+        inliers = inliers > 0
+        return Em, inliers
+
+    def find_fundamental_matrix(self, mkpts1, mkpts2, max_iter):
+        """
+        Find the fundamental matrix between two images.
+        
+        :param mkpts1: The keypoints of the first image.
+        :param mkpts2: The keypoints of the second image.
+        :param max_iter: The maximum number of iterations.
+        :return: The fundamental matrix and the inliers.
+        """
+        Fm, inliers = cv2.findFundamentalMat(
+            points1=mkpts1,
+            points2=mkpts2,
+            method=cv2.USAC_MAGSAC,
+            ransacReprojThreshold=self.epsilon,
+            confidence=self.prob,
+            maxIters=100000
+        )
+        inliers = inliers > 0
+        return Fm, inliers
+
+    def decompose_essential_matrix(self, Em, mkpts0, mkpts1, intrinsic_matrix):
+        """
+        Recover the pose from the essential matrix.
+
+        :param Em: The essential matrix.
+        :param mkpts0: The keypoints of the first image.
+        :param mkpts1: The keypoints of the second image.
+        :param intrinsic_matrix: The camera intrinsic matrix.
+        :return: The rotation matrix and translation vector.
+        """
+        _, R, t, _ = cv2.recoverPose(Em, mkpts0, mkpts1, intrinsic_matrix)
         return R, t
 
-    def rescale_translation(
-        self, 
-        t: np.ndarray, 
-        scale: float
-    ) -> np.ndarray:
+    def decompose_fundamental_matrix(self, pts1, pts2, percent):
+        """
+        Recover the pose from the fundamental matrix.
+
+
+        """
+        diff = pts2 - pts1
+        len_pts = len(diff)
+        idx = np.random.choice(np.arange(len_pts), int(percent * len_pts))
+        t = diff.mean(axis=0)
+        return t
+    
+    def rescale_translation(self, t: np.ndarray, scale: float) -> np.ndarray:
         """
         Rescale the translation vector.
 
@@ -152,28 +159,43 @@ class VisualOdometry:
         """
         return t * scale
 
-    def concatenate_transformation(
-        self, C_prev: np.ndarray, R: np.ndarray, t: np.ndarray
+    def essential_homogeneous_matrix(
+        self, H_previous: np.ndarray, R: np.ndarray, t: np.ndarray
     ) -> np.ndarray:
         """
-        Concatenate the transformation matrices.
+        Compute the current homogeneous matrix.
 
-        :param C_prev: The previous transformation matrix.
+        :param H_previous: The previous homogeneous matrix.
         :param R: The rotation matrix.
         :param t: The translation matrix.
-        :return: The concatenated transformation matrix.
+        :return: The current homogeneous matrix.
         """
-        T = np.hstack((R, t))
-        T = np.vstack((T, [0, 0, 0, 1]))
-        return C_prev @ T
+        H_aux = np.hstack((R, t))
+        H = np.vstack((H_aux, [0, 0, 0, 1]))
+        return H_previous @ H
+    
+    def fundamental_homogeneous_matrix(
+        self, H_previous: np.ndarray, Fm: np.ndarray, t: np.ndarray
+    ) -> np.ndarray:
+        """
+        Compute the current homogeneous matrix.
+
+        :param H_previous: The previous homogeneous matrix.
+        :param R: The rotation matrix.
+        :param t: The translation matrix.
+        :return: The current homogeneous matrix.
+        """
+        t = np.hstack((t,np.array([1])))
+        H_aux = np.hstack((Fm, np.expand_dims(t, axis=1)))
+        H = np.vstack((H_aux, [0, 0, 0, 1]))
+        return H_previous @ H
 
     def process_frames(
         self,
         img1: str,
         img2: str,
-        C_prev: np.ndarray = np.eye(4),
         intrinsic_matrix: Optional[np.ndarray] = None,
-        display: bool = False
+        H_previous: np.ndarray = np.eye(4),
     ) -> Optional[np.ndarray]:
         """
         Process two frames and estimate the transformation matrix.
@@ -185,36 +207,51 @@ class VisualOdometry:
         :param display: Whether to display the matches.
         :return: The estimated transformation matrix (either F or E).
         """
-        
-        # step 1 -> Capture new Ik frame
-        gray_img1 = self.read_frame(img1)
-        gray_img2 = self.read_frame(img2)
-
         # Step 2 -> Extract and combine features between Ik-1 and Ik
-        pts1, pts2, matches = self.extract_and_match_features(gray_img1, gray_img2, display)
+        correspondences = self.extract_and_match_features(img1, img2)
 
-        max_iter = self.model_fitter.compute_num_iterations(self.prob, self.epsilon, self.num_points, matches)
+        mkpts1, mkpts2 = self.extract_keypoints(correspondences)
+
+        max_iter = self.compute_num_iterations(self.prob, self.epsilon, self.num_points, correspondences)
 
         if intrinsic_matrix is not None:
             # Step3 -> Calculate the essential matrix for the image pair I_{k-1}, I_k
-            E, inliers1, inliers2 = self.model_fitter.fit_essential_matrix(pts1, pts2, intrinsic_matrix, max_iter)
-            if E is None:
+            Em, inliers = self.find_essential_matrix(mkpts1, mkpts2, intrinsic_matrix, max_iter)
+            if Em is None:
                 print("No valid essential matrix found, skipping frame.")
                 return None
-
+            
             # Step 4 -> Decompose essential matrix into R_k and t_k , and form T_k
-            R, t = self.decompose_essential_matrix(E, pts1, pts2, intrinsic_matrix)
+            R, t = self.decompose_essential_matrix(Em, mkpts1, mkpts2, intrinsic_matrix)
 
             # Step 5 -> Compute relative scale and rescale t_k accordingly
-            t_rescaled = self.rescale_translation(t, scale=0.5)
+            t_rescaled = self.rescale_translation(t, scale=0.42*100)
 
             # step 6 -> Concatenate transformation by computing C_k = C_{k-1} T_k
-            C = self.concatenate_transformation(C_prev, R, t_rescaled)
-            return C
-
+            current_pose = self.essential_homogeneous_matrix(H_previous, R, t_rescaled)
+        
         else:
-            F, inliers1, inliers2 = self.model_fitter.fit_fundamental_matrix(pts1, pts2, max_iter)
-            if F is None:
+            print("No intrinsic matrix found.")
+            # Step3 -> Calculate the fundamental matrix for the image pair I_{k-1}, I_k
+            Fm, inliers = self.find_fundamental_matrix(mkpts1, mkpts2, max_iter)
+            if Fm is None:
                 print("No valid fundamental matrix found, skipping frame.")
                 return None
-            return F
+            
+            # Step 4 -> Decompose fundamental matrix into R_k and t_k , and form T_k
+            t = self.decompose_fundamental_matrix(
+                mkpts1[inliers.squeeze()], mkpts2[inliers.squeeze()], 0.05
+            )
+
+            # Step 5 -> Compute relative scale and rescale t_k accordingly
+            t_rescaled = self.rescale_translation(t, scale=0.42735042735042733)
+
+            # step 6 -> Concatenate transformation by computing C_k = C_{k-1} T_k
+            current_pose = self.fundamental_homogeneous_matrix(H_previous, Fm, t_rescaled)
+                    
+        
+        if self.display: 
+            self.feature_matcher.show_matches(img1, img2, mkpts1, mkpts2, inliers)
+        
+        return current_pose
+

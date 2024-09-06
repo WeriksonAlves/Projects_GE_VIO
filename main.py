@@ -9,7 +9,7 @@ from modules.auxiliary.DisplayPostureCamera import DisplayPostureCamera
 
 from modules.feature.FeatureExtractor import *
 from modules.feature.FeatureMatcher import *
-from modules.feature.ModelFitter import ModelFitter
+from Projects_GE_VIO.modules.pose_estimation.ModelFitter import ModelFitter
 from modules.feature.VisualOdometry import VisualOdometry
 
 from pyparrot.Bebop import Bebop
