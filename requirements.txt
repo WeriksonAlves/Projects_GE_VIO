@@ -1,6 +1,11 @@
+kornia==0.7.3
+kornia_moons==0.2.9
 matplotlib==3.9.2
 numpy==2.1.1
 opencv_contrib_python==4.10.0.84
+opencv_python==4.10.0.84
 pyparrot==1.5.20
+scipy==1.14.1
+torch==2.4.0
 untangle==1.2.1
 zeroconf==0.20.0

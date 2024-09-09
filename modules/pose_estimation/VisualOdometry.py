@@ -11,7 +11,6 @@ class VisualOdometry(PoseEstimator):
         self,
         feature_extractor: InterfaceFeatureExtractor,
         feature_matcher: InterfaceFeatureMatcher,
-        model_fitter: InterfaceModelFitter,
         params: Optional[dict] = None
     ) -> None:
         """
@@ -24,7 +23,6 @@ class VisualOdometry(PoseEstimator):
         """
         self.feature_extractor = feature_extractor
         self.feature_matcher = feature_matcher
-        self.model_fitter = model_fitter
         self.params = params or {}
 
         self._define_parameters()
@@ -36,6 +34,7 @@ class VisualOdometry(PoseEstimator):
         self.num_points = self.params.get("num_points", 8)
         self.epsilon = self.params.get("epsilon", 0.5)
         self.prob = self.params.get("prob", 0.99)
+        self.scale = self.params.get("scale", 0.5)
         self.display = self.params.get("display", False)
 
     def _initialize_pose_estimator(self, *args, **kwargs):
@@ -225,7 +224,7 @@ class VisualOdometry(PoseEstimator):
             R, t = self.decompose_essential_matrix(Em, mkpts1, mkpts2, intrinsic_matrix)
 
             # Step 5 -> Compute relative scale and rescale t_k accordingly
-            t_rescaled = self.rescale_translation(t, scale=0.42*100)
+            t_rescaled = self.rescale_translation(t, scale=self.scale)
 
             # step 6 -> Concatenate transformation by computing C_k = C_{k-1} T_k
             current_pose = self.essential_homogeneous_matrix(H_previous, R, t_rescaled)

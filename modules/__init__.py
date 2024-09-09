@@ -7,5 +7,4 @@ from .calibration.Camera import Camera
 from .feature.FeatureExtractor import *
 from .feature.FeatureMatcher import *
 
-from .pose_estimation.ModelFitter import ModelFitter
 from .pose_estimation.VisualOdometry import VisualOdometry
