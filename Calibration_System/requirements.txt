@@ -1,6 +1,0 @@
-untangle==1.2.1
-pyparrot==1.5.20
-zeroconf==0.20.0
-numpy==2.1.0
-opencv_python==4.10.0.84
-matplotlib==3.9.2
